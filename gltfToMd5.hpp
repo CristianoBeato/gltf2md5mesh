@@ -29,6 +29,13 @@
 #ifndef __GLTF_TO_MD5_HPP__
 #define __GLTF_TO_MD5_HPP__
 
+struct config_t
+{
+    bool forceJoint = false;
+    bool forceWeights = false;
+    bool forceTCoords = false;
+};
+
 struct MD5Joint_t
 {
     int             parentIndex;

@@ -34,8 +34,22 @@ static constexpr int VERSION = 10; // 1.0
 
 namespace gltf = fastgltf;
 
-static const char arg_input[] = "--input";
-static const char arg_output[] = "--output";
+static const char arg_input[] = "--input";  // input gltf
+static const char arg_output[] = "--mesh";  // output mesh
+static const char arg_forcej[] = "--force-joints";  // force to create joits/weights
+static const char arg_forcew[] = "--force-weights";  // foce to create weights
+static const char arg_help[] = "--help";   // print the help string
+
+static const char help_string[] =
+{
+    "gltf2md5mesh\n"
+    "\n"
+    "\t--input\tinput gltf2 model\n"
+    "\t--mesh\toutput mesh (.md5mesh)\n"
+    "\t--force-joints\tforce to create a root joint in static model that don't have joints\n"
+    "\t--force-weights\tforce to create vertices weights in static model that don't have weights\n"
+    "\t--help\tprint this help\n"
+};
 
 static constexpr auto supportedExtensions =
 			fastgltf::Extensions::KHR_mesh_quantization |
@@ -61,7 +75,12 @@ int main( int argc, char* argv[] )
 
     for ( int i = 0; i < argc; i++)
     {
-        if ( std::strncmp( argv[i], arg_input, std::strlen( arg_input ) ) == 0 )
+        if ( std::strncmp( argv[i], arg_help, std::strlen(arg_help) ) == 0 )
+        {
+            std::cout << help_string << std::endl;
+            return EXIT_SUCCESS;
+        }
+        else if ( std::strncmp( argv[i], arg_input, std::strlen( arg_input ) ) == 0 )
         {
             if ( ( i + 1 ) >= argc )
                 break;
@@ -76,7 +95,6 @@ int main( int argc, char* argv[] )
             outPath = argv[i + 1];
         }
     }
-    
    
     try
     {
@@ -91,10 +109,10 @@ int main( int argc, char* argv[] )
     catch(const std::exception& e)
     {
         std::cerr << e.what() << '\n';
-        return -1;
+        return EXIT_FAILURE;
     }
     
-    return 0;
+    return EXIT_SUCCESS;
 }
 
 void LoadJoints(const gltf::Asset& asset, const gltf::Skin& skin, MD5Model_t& out)
@@ -266,6 +284,17 @@ void LoadMesh( const gltf::Asset& asset, const gltf::Mesh& gltfMesh, const gltf:
         std::vector<glm::mat4>      inverseBindMatrix = std::vector<glm::mat4>(); // inverse pose matrix
 
         MD5MeshSubset_t subset{};
+
+        if ( prim.materialIndex.has_value() )
+        {
+            const auto &mtr = asset.materials[*prim.materialIndex];
+            subset.shader = mtr.name.c_str();
+        }
+        else
+        {
+            subset.shader = "defaut";
+        }
+        
 
         // get vertex positions
         LoadPositions( asset, prim, positions );
