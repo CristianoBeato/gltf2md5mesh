@@ -28,13 +28,6 @@
 #ifndef __PRECOMPILED_HPP__
 #define __PRECOMPILED_HPP__
 
-#include <iostream>
-#include <fstream>
-#include <cstring>
-#include <stdexcept>
-#include <vector>
-#include <string>
-
 #include <fastgltf/core.hpp>
 #include <fastgltf/types.hpp>
 #include <fastgltf/tools.hpp>

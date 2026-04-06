@@ -26,14 +26,12 @@
 ===========================================================================================
 */
 
-#ifndef __GLTF_TO_MD5_HPP__
-#define __GLTF_TO_MD5_HPP__
+#include "md5View.hpp"
 
-struct config_t
+crMD5View::crMD5View( void )
 {
-    bool forceJoint = false;
-    bool forceWeights = false;
-    bool forceTCoords = false;
-};
+}
 
-#endif //__GLTF_TO_MD5_HPP__
+crMD5View::~crMD5View( void )
+{
+}

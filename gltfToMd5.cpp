@@ -26,8 +26,8 @@
 ===========================================================================================
 */
 
-#include "precompiled.hpp"
 #include "gltfToMd5.hpp"
+#include "md5Model.hpp"
 
 //
 static constexpr int VERSION = 10; // 1.0
@@ -63,10 +63,9 @@ static constexpr auto gltfOptions =
             fastgltf::Options::LoadExternalImages |
 			fastgltf::Options::GenerateMeshIndices;
 
-static void LoadJoints(const gltf::Asset& asset, const gltf::Skin& skin, MD5Model_t& out);
-static void LoadMesh( const gltf::Asset& asset, const gltf::Mesh& gltfMesh, const gltf::Skin& skin, MD5Model_t& outModel );
-static MD5Model_t ConvertGLTFtoMD5( const std::filesystem::path& in_path );
-static void SaveMD5( const std::filesystem::path& in_path, const std::string &in_cmdline, const MD5Model_t &in_model );
+static void LoadJoints(const gltf::Asset& asset, const gltf::Skin& skin, MD5::Model& out);
+static void LoadMesh( const gltf::Asset& asset, const gltf::Mesh& gltfMesh, const gltf::Skin& skin, MD5::Model& outModel );
+static MD5::Model ConvertGLTFtoMD5( const std::filesystem::path& in_path );
 
 int main( int argc, char* argv[] )
 {
@@ -104,7 +103,12 @@ int main( int argc, char* argv[] )
         auto model = ConvertGLTFtoMD5( inPath );
         
         outPath.replace_extension( "md5mesh" );
-        SaveMD5( outPath,"just test... for now", model );
+
+        /// Write the .md5mesh to disk
+        /// TODO: command line string should be generated from the actual command line arguments, not hardcoded
+        model.SetVersion( VERSION ); /// We current suport version 1.0 of the md5 format, but this can be changed in the future if we need to add new features that can be not compatible with the old version
+        model.SetCommandLine( "gltf2md5mesh --input " + inPath.string() + " --mesh " + outPath.string() );
+        model.Write( outPath.string() );
     }
     catch(const std::exception& e)
     {
@@ -115,9 +119,9 @@ int main( int argc, char* argv[] )
     return EXIT_SUCCESS;
 }
 
-void LoadJoints(const gltf::Asset& asset, const gltf::Skin& skin, MD5Model_t& out)
+void LoadJoints( const gltf::Asset& asset, const gltf::Skin& skin, MD5::Model& out )
 {
-    out.joints.reserve(skin.joints.size());
+    out.ReserveJoints( skin.joints.size() );
 
     // Descobre parent de cada node
     std::vector<int> parent(asset.nodes.size(), -1);
@@ -132,7 +136,7 @@ void LoadJoints(const gltf::Asset& asset, const gltf::Skin& skin, MD5Model_t& ou
         uint32_t nodeIndex = skin.joints[i];
         const gltf::Node& node = asset.nodes[nodeIndex];
 
-        MD5Joint_t j{};
+        MD5::Joint_t &j = out.Joints()[i];
 
         if ( node.name.empty() )
             j.name =  "joint_" + std::to_string(i);
@@ -153,10 +157,7 @@ void LoadJoints(const gltf::Asset& asset, const gltf::Skin& skin, MD5Model_t& ou
         // MD5 usa orientação como vec3, faltando ‘w’
         glm::quat q = r;  
         j.orient = glm::vec3(q.x, q.y, q.z);
-
         j.pos = t;
-
-        out.joints.push_back(j);
     }
 }
 
@@ -272,9 +273,9 @@ static void LoadInverseMatrixes( const gltf::Asset& asset, const gltf::Skin& ski
     fastgltf::iterateAccessorWithIndex<fastgltf::math::fmat4x4>( asset, inverseAccessor, getInverse );
 }
 
-void LoadMesh( const gltf::Asset& asset, const gltf::Mesh& gltfMesh, const gltf::Skin& skin, MD5Model_t& outModel )
+void LoadMesh( const gltf::Asset& asset, const gltf::Mesh& gltfMesh, const gltf::Skin& skin, MD5::Model& outModel )
 {
-    for (auto& prim : gltfMesh.primitives) 
+    for ( auto& prim : gltfMesh.primitives )
     {
         size_t vertexCount = 0;
         std::vector<glm::vec4>      positions = std::vector<glm::vec4>();   // vertex positions ( vec4 for easy joit pos calculation )
@@ -283,7 +284,7 @@ void LoadMesh( const gltf::Asset& asset, const gltf::Mesh& gltfMesh, const gltf:
         std::vector<glm::u16vec4>   joints = std::vector<glm::u16vec4>();   // joint ids
         std::vector<glm::mat4>      inverseBindMatrix = std::vector<glm::mat4>(); // inverse pose matrix
 
-        MD5MeshSubset_t subset{};
+        MD5::Mesh_t subset{};
 
         if ( prim.materialIndex.has_value() )
         {
@@ -294,7 +295,6 @@ void LoadMesh( const gltf::Asset& asset, const gltf::Mesh& gltfMesh, const gltf:
         {
             subset.shader = "defaut";
         }
-        
 
         // get vertex positions
         LoadPositions( asset, prim, positions );
@@ -350,21 +350,21 @@ void LoadMesh( const gltf::Asset& asset, const gltf::Mesh& gltfMesh, const gltf:
         subset.vertices.resize(vertexCount);
 
         // MD5 weights são uma lista linear + startWeight
-        std::vector<MD5Weight_t> weightsList;
+        std::vector<MD5::Weight_t> weightsList;
 
-        size_t nextWeight = 0;
+        uint32_t nextWeight = 0;
 
         // Transformar para MD5
-        for (size_t i = 0; i < vertexCount; i++) 
+        for ( uint32_t i = 0; i < vertexCount; i++) 
         {
-            MD5Vertex_t v{};
+            MD5::Vertex_t v{};
             v.uv = coordinates[i];
             v.startWeight = nextWeight;
             v.weightCount = 4; // glTF garante 4 weights
 
             for (int w = 0; w < 4; w++) 
             {
-                MD5Weight_t mw{};
+                MD5::Weight_t mw{};
                 mw.joint = joints[i][w];
                 mw.bias  = weights[i][w];
 
@@ -392,7 +392,7 @@ void LoadMesh( const gltf::Asset& asset, const gltf::Mesh& gltfMesh, const gltf:
 
             for (size_t i = 0; i < indexAcc.count; i += 3 )
             {
-                MD5Triangle_t t{};
+                MD5::Triangle_t t{};
                 t.v0 = indices[ i + 0 ];
                 t.v1 = indices[ i + 1 ];
                 t.v2 = indices[ i + 2 ];
@@ -400,15 +400,15 @@ void LoadMesh( const gltf::Asset& asset, const gltf::Mesh& gltfMesh, const gltf:
             }
         }
         else
-            throw std::runtime_error( " not valide index om model " );
+            throw std::runtime_error( " not valide index on model " );
 
-        outModel.meshes.push_back(std::move(subset));
+        outModel.AddMesh( subset );
     }
 }
 
-MD5Model_t ConvertGLTFtoMD5( const std::filesystem::path& in_path )
+MD5::Model ConvertGLTFtoMD5( const std::filesystem::path& in_path )
 {
-    MD5Model_t model{};
+    MD5::Model model{};
 
     fastgltf::Parser parser( supportedExtensions );
 
@@ -437,89 +437,3 @@ MD5Model_t ConvertGLTFtoMD5( const std::filesystem::path& in_path )
     return model;
 }
 
-static void SaveMD5( const std::filesystem::path& in_path, const std::string &in_cmdline, const MD5Model_t &in_model )
-{
-	uint32_t i = 0;
-	uint32_t j = 0;
-	std::ofstream file( in_path );
-    if (!file.is_open()) 
-        std::runtime_error( "Erro: failed to write model" ); 
-
-    // never in exponencial
-    file << std::fixed << std::setprecision(6);
-
-    //
-    file << std::setprecision(6);  // 6 decimal digits (like Doom 3)
-
-	// write file version
-	file << "MD5Version " << VERSION << "\n";
-
-	// write commandline
-	file << "commandline " << "\"" << in_cmdline << "\"\n\n";
-
-	// write the joints and meshes count
-	file << "numJoints " << in_model.joints.size() << "\n";
-	file << "numMeshes " << in_model.meshes.size() << "\n\n";
-
-	file << "joints\n{\n";
-
-	for ( i = 0; i < in_model.joints.size(); i++)
-	{
-		MD5Joint_t joint = in_model.joints[i];
-		
-		// write joint "name" and parent index ( -1 for root )
-		file << "\t\"" << joint.name << "\" " << joint.parentIndex;
-		
-		// write joint position
-		file << " ( " << joint.pos.x << " " << joint.pos.y << " " << joint.pos.z << " ) ";
-		
-		// write joint orientation
-		file << " ( " << joint.orient.x << " " << joint.orient.y << " " << joint.orient.z << " )\n";
-	}
-
-	file << "}\n";
-	file << std::endl;
-
-	for ( i = 0; i < in_model.meshes.size(); i++)
-	{
-		MD5MeshSubset_t mesh = in_model.meshes[i];
-		file << "mesh\n{\n";
-
-		file << "\tshader \"" << mesh.shader << "\"\n\n";
-
-		file << "\tnumverts " << mesh.vertices.size() << "\n";
-		for ( j = 0; j < mesh.vertices.size(); j++ )
-		{
-			auto vert = mesh.vertices[j];
-			file << "\tvert " << j << " ( " << vert.uv.x << " " << vert.uv.y << " ) " << vert.startWeight << " " << vert.weightCount << "\n";
-		}
-		file << std::endl;
-
-		file << "\tnumtris " << mesh.triangles.size() << "\n";
-		for ( j = 0; j < mesh.triangles.size(); j++)
-		{
-			auto tri = mesh.triangles[j];
-			file << "\ttri " << j << " " << tri.v0 << " " << tri.v1 << " " << tri.v2 << "\n";
-		}
-		file << std::endl;
-
-
-		file << "\tnumweights " << mesh.weights.size();
-		for ( j = 0; j < mesh.weights.size(); j++ )
-		{
-			auto weight = mesh.weights[j];
-			
-			// write weight index, joint id, bias
-			file << "\tweight " << j << " " << weight.joint << " " << weight.bias << " ";
-
-			// write joint related position
-			file << "( " << weight.pos.x << " " << weight.pos.y << " " << weight.pos.z << " )\n"; 
-		}
-		file << std::endl;
-
-		// mesh end 
-		file << "}"<< std::endl;
-	}
-
-	file.close();
-}

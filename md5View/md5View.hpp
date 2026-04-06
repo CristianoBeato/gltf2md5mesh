@@ -26,14 +26,20 @@
 ===========================================================================================
 */
 
-#ifndef __GLTF_TO_MD5_HPP__
-#define __GLTF_TO_MD5_HPP__
+#ifndef __MD5_VIEW_HPP__
+#define __MD5_VIEW_HPP__
 
-struct config_t
+class crMD5View
 {
-    bool forceJoint = false;
-    bool forceWeights = false;
-    bool forceTCoords = false;
+public:
+    crMD5View( void );
+    ~crMD5View( void );
+
+private:
+    void    CreateWindow( void );
+    void    InitOpenGL( void );
+    void    DestroyWindow( void );
+    void    DestroyOpenGL( void );
 };
 
-#endif //__GLTF_TO_MD5_HPP__
+#endif //!__MD5_VIEW_HPP__
