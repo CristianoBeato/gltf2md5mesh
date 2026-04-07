@@ -5,7 +5,15 @@
 #include <fstream>
 #include <sstream>
 
-void MD5::Model::Read( const std::string &in_path )
+MD5::Model::Model(void)
+{
+}
+
+MD5::Model::~Model(void)
+{
+}
+
+void MD5::Model::Read(const std::string &in_path)
 {
     uint32_t i = 0;
     uint32_t jointIndex = 0;
