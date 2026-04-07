@@ -27,11 +27,127 @@
 */
 
 #include "md5View.hpp"
+#include <SDL3/SDL.h>
+#include <SDL3/SDL_main.h>
+
+/// main thread entry point
+int main( int argc, char* argv[] )
+{
+	try
+	{
+		crMD5View md5View = crMD5View();
+		md5View.Run();		
+	}
+	catch(const std::exception& e)
+	{
+		/// something went wrong
+		std::cerr << e.what() << '\n';
+		return EXIT_FAILURE;
+	}
+	
+	/// everithing run well 
+	return EXIT_SUCCESS;
+}
 
 crMD5View::crMD5View( void )
 {
+	/// initialize SDL video and events subsystems
+	if( SDL_Init( SDL_INIT_VIDEO | SDL_INIT_EVENTS) )
+		throw std::runtime_error( SDL_GetError() );
+
+	InitWindow();
+	InitOpenGL();
+
+	m_renderer = new crRenderer();
+	m_renderer->Startup( 800, 600, nullptr );
 }
 
 crMD5View::~crMD5View( void )
 {
+	if ( m_renderer )
+	{
+		m_renderer->Shutdown();
+		delete m_renderer;
+		m_renderer = nullptr;
+	}
+	
+
+	DestroyWindow();
+	DestroyOpenGL();
+	SDL_Quit();
+}
+
+void crMD5View::Run( void )
+{
+	uint64_t frameStartTime = 0;
+	uint64_t frameEndTime = 0;
+	while ( m_state != 0 )
+	{
+		frameStartTime = SDL_GetTicks();
+		Events();
+		Draw();
+		m_opengl->SwapBuffers();
+		frameEndTime = SDL_GetTicks();
+
+		/// limit to 60 FPS
+		if ( frameEndTime - frameStartTime < 16 )
+			SDL_Delay( 16 - (frameEndTime - frameStartTime) );
+	}	
+}
+
+void crMD5View::Events(void)
+{
+	SDL_Event evt;
+	while ( SDL_PollEvent( &evt ) )
+	{
+		switch ( evt.type )
+		{
+		case SDL_EVENT_WINDOW_CLOSE_REQUESTED:
+		case SDL_EVENT_QUIT:
+			m_state = 0;
+			return;
+		
+		default:
+			break;
+		}	
+	}
+}
+
+void crMD5View::Draw(void)
+{
+	m_renderer->Render();
+}
+
+void crMD5View::InitWindow(void)
+{
+	/// Try create the main application window
+	m_window = SDL_CreateWindow( "MD5 View", 800, 600, SDL_WINDOW_OPENGL );
+	if( m_window == nullptr )
+		throw std::runtime_error( SDL_GetError() );
+}
+
+void crMD5View::InitOpenGL(void)
+{
+	m_opengl = new OpenGL();
+	if( !m_opengl->Init( m_window ) )
+		throw std::runtime_error( "Failed to initialize OpenGL context" );
+}
+
+void crMD5View::DestroyWindow(void)
+{
+	if( m_window != nullptr )
+	{
+		SDL_DestroyWindow( m_window );
+		m_window = nullptr;
+	}
+}
+
+void crMD5View::DestroyOpenGL(void)
+{
+	if( m_opengl != nullptr )
+	{
+		m_opengl->Destroy();
+		delete m_opengl;
+		m_opengl = nullptr;
+	}
 }

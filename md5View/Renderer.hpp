@@ -1,3 +1,4 @@
+
 /*
 ===========================================================================================
 	This file is part of gltf2md5mesh.
@@ -26,31 +27,50 @@
 ===========================================================================================
 */
 
-#ifndef __MD5_VIEW_HPP__
-#define __MD5_VIEW_HPP__
+#ifndef __RENDERER_HPP__
+#define __RENDERER_HPP__
 
-#include "OpenGL.hpp"
-#include "Renderer.hpp"
-
-class crMD5View
+class crRendererModel
 {
 public:
-    crMD5View( void );
-    ~crMD5View( void );
-	void   Run( void );
+    crRendererModel( void );
+    ~crRendererModel( void );
+
+    void Draw( const GLuint in_vao  );
+
 
 private:
-	int 			m_state;
-	SDL_Window*		m_window;
-	OpenGL*			m_opengl;
-	crRenderer*		m_renderer;
-
-	void	Events( void );
-	void	Draw( void );
-    void    InitWindow( void );
-    void    InitOpenGL( void );
-    void    DestroyWindow( void );
-    void    DestroyOpenGL( void );
+    uint32_t    m_numTriangles;
+    GLuint      m_ebo;    // Triangle buffer
+    GLuint      m_vbo;    // Vertex buffer 
+    GLuint      m_wbo;    // Weights buffer 
+    GLuint      m_jbo;    // Joints buffer 
 };
 
-#endif //!__MD5_VIEW_HPP__
+class crRenderer
+{
+public:
+    crRenderer( void );
+    ~crRenderer( void );
+
+    bool Startup( const uint32_t in_width, const uint32_t in_height, const MD5::Model* in_model );
+    void Shutdown( void );
+    void Render( void );
+
+private:
+    uint32_t            m_width;
+    uint32_t            m_height;
+    GLuint              m_vao;
+    GLuint              m_program;
+    GLuint              m_ubo;
+    crRendererModel*    m_model;
+
+    void    CreateProgram( void );
+    void    DestroyProgram( void );
+    void    CreateVertexArray( void );
+    void    DestroyVertexArray( void );
+    void    CreateBuffers( void );
+    void    DestroyBuffers( void );
+};
+
+#endif // __RENDERER_HPP__

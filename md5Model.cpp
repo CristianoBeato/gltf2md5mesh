@@ -134,7 +134,10 @@ void MD5::Model::Read( const std::string &in_path )
                         float uvX, uvY;
                         int startWeight, weightCount;
 
-                        vertIss >> vertIndex >> std::quoted( uvX ) >> std::quoted( uvY ) >> startWeight >> weightCount;
+                        vertIss.ignore( 100, '(' ); // ignore until '('
+                        vertIss >> uvX >> uvY;
+                        vertIss.ignore( 100, '(' ); // ignore until '('
+                        vertIss >> startWeight >> weightCount;
 
                         Vertex_t vertex{};
                         vertex.uv = glm::vec2( uvX, uvY );
