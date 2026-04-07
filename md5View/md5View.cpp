@@ -29,13 +29,60 @@
 #include "md5View.hpp"
 #include <SDL3/SDL.h>
 #include <SDL3/SDL_main.h>
+#include <filesystem>
+
+static const char arg_input[] = "--mesh";  // input md5mesh
+static const char arg_output[] = "--animation";  // input md5anim
+static const char arg_forcej[] = "--show-joints";  // draw model bone links
+static const char arg_help[] = "--help";   // print the help string
+
+static const char help_string[] =
+{
+    "md5View v0.1\n"
+    "\n"
+	"\t--mesh\tinput mesh (.md5mesh)\n"
+    "\t--animation\tinput animation (.md5anim)\n"
+    "\t--show-joints\tshow model bone links\n"
+    "\t--help\tprint this help\n"
+};
 
 /// main thread entry point
 int main( int argc, char* argv[] )
 {
-	try
+	std::filesystem::path inMeshPath;
+    std::filesystem::path inAnimPath;
+
+    for ( int i = 0; i < argc; i++)
 	{
+		/// print to console the help string and exit 
+		if ( std::strncmp( argv[i], arg_help, std::strlen(arg_help) ) == 0 )
+        {
+            std::cout << help_string << std::endl;
+            return EXIT_SUCCESS;
+        }
+
+		/// parse input mesh path
+		else if ( std::strncmp( argv[i], arg_input, std::strlen( arg_input ) ) == 0 )
+		{
+			if ( ( i + 1 ) >= argc )
+				break;
+
+			inMeshPath = argv[i + 1];
+		}
+		/// parse input animation path
+		else if ( std::strncmp( argv[i], arg_output, std::strlen( arg_output ) ) == 0 )
+		{
+			 if ( ( i + 1 ) >= argc )
+				break;
+
+			inAnimPath = argv[i + 1];
+		}
+	}
+
+	try
+	{	
 		crMD5View md5View = crMD5View();
+		md5View.OpenMesh( inMeshPath.string(), inAnimPath.string() );
 		md5View.Run();		
 	}
 	catch(const std::exception& e)
@@ -49,10 +96,14 @@ int main( int argc, char* argv[] )
 	return EXIT_SUCCESS;
 }
 
-crMD5View::crMD5View( void )
+crMD5View::crMD5View( void ) :
+	m_state( 0 ),
+	m_window( nullptr ),
+	m_opengl( nullptr ),
+	m_renderer( nullptr )
 {
 	/// initialize SDL video and events subsystems
-	if( SDL_Init( SDL_INIT_VIDEO | SDL_INIT_EVENTS) )
+	if( !SDL_Init( SDL_INIT_VIDEO | SDL_INIT_EVENTS) )
 		throw std::runtime_error( SDL_GetError() );
 
 	InitWindow();
@@ -60,6 +111,7 @@ crMD5View::crMD5View( void )
 
 	m_renderer = new crRenderer();
 	m_renderer->Startup( 800, 600, nullptr );
+	m_state = 1;
 }
 
 crMD5View::~crMD5View( void )
@@ -70,11 +122,15 @@ crMD5View::~crMD5View( void )
 		delete m_renderer;
 		m_renderer = nullptr;
 	}
-	
 
 	DestroyWindow();
 	DestroyOpenGL();
 	SDL_Quit();
+}
+
+void crMD5View::OpenMesh( const std::string &in_meshPath, const std::string &in_animPath )
+{
+
 }
 
 void crMD5View::Run( void )

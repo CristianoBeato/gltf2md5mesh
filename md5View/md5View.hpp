@@ -37,7 +37,8 @@ class crMD5View
 public:
     crMD5View( void );
     ~crMD5View( void );
-	void   Run( void );
+	void	OpenMesh( const std::string& in_meshPath, const std::string& in_animPath );
+	void	Run( void );
 
 private:
 	int 			m_state;
