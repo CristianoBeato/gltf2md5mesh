@@ -148,6 +148,9 @@ bool OpenGL::Init(const SDL_Window *in_window)
 	if( m_context == nullptr )
 		return false;
 
+	LoadFunctions();
+	SetupDebugging();
+
     return true;
 }
 
