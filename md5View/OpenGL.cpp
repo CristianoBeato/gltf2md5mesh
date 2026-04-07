@@ -43,6 +43,7 @@ PFNGLCLEARCOLORPROC							glClearColor = nullptr;
 PFNGLCLEARPROC								glClear = nullptr;
 
 PFNGLDRAWELEMENTSPROC						glDrawElements = nullptr;
+PFNGLDRAWELEMENTSBASEVERTEXPROC				glDrawElementsBaseVertex = nullptr;
 
 /// GL_ARB_vertex_array_object
 PFNGLCREATEVERTEXARRAYSPROC 				glCreateVertexArrays = nullptr;
@@ -64,6 +65,7 @@ PFNGLMAPNAMEDBUFFERRANGEPROC				glMapNamedBufferRange = nullptr;
 PFNGLUNMAPNAMEDBUFFERPROC					glUnmapNamedBuffer = nullptr;
 PFNGLBINDBUFFERPROC							glBindBuffer = nullptr;
 PFNGLBINDBUFFERBASEPROC						glBindBufferBase = nullptr;
+PFNGLBINDBUFFERRANGEPROC					glBindBufferRange = nullptr;
 
 /// Shaders stages 
 PFNGLCREATESHADERPROC						glCreateShader = nullptr;
@@ -186,6 +188,7 @@ void OpenGL::LoadFunctions(void)
 	GL_GET_PROC( glClear );
 
 	GL_GET_PROC( glDrawElements );
+	GL_GET_PROC( glDrawElementsBaseVertex );
 
 	/// GL_ARB_vertex_array_object
 	GL_GET_PROC( glCreateVertexArrays );
@@ -207,6 +210,7 @@ void OpenGL::LoadFunctions(void)
 	GL_GET_PROC( glUnmapNamedBuffer );
 	GL_GET_PROC( glBindBuffer );
 	GL_GET_PROC( glBindBufferBase );
+	GL_GET_PROC( glBindBufferRange );
 
 	/// Shaders stages 
 	GL_GET_PROC( glCreateShader );

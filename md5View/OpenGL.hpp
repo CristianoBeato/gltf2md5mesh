@@ -45,6 +45,7 @@ extern PFNGLCLEARCOLORPROC						glClearColor;
 extern PFNGLCLEARPROC							glClear;
 
 extern PFNGLDRAWELEMENTSPROC					glDrawElements;
+extern PFNGLDRAWELEMENTSBASEVERTEXPROC			glDrawElementsBaseVertex;
 
 /// GL_ARB_vertex_array_object
 extern PFNGLCREATEVERTEXARRAYSPROC 				glCreateVertexArrays;
@@ -66,6 +67,7 @@ extern PFNGLMAPNAMEDBUFFERRANGEPROC				glMapNamedBufferRange;
 extern PFNGLUNMAPNAMEDBUFFERPROC				glUnmapNamedBuffer;
 extern PFNGLBINDBUFFERPROC						glBindBuffer;
 extern PFNGLBINDBUFFERBASEPROC					glBindBufferBase;
+extern PFNGLBINDBUFFERRANGEPROC					glBindBufferRange;
 
 /// Shaders stages 
 extern PFNGLCREATESHADERPROC					glCreateShader;
