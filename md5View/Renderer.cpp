@@ -30,6 +30,7 @@
 
 #include <glm/gtc/matrix_transform.hpp>
 #include <glm/gtc/type_ptr.hpp>
+#include <glm/gtc/quaternion.hpp>
 
 struct uniforms_t
 {
@@ -91,12 +92,11 @@ void crRendererModel::Create( const MD5::Model *in_model )
     glNamedBufferStorage( m_ebo, numTriangles * 3 * sizeof( uint32_t ), nullptr, GL_DYNAMIC_STORAGE_BIT );
     glNamedBufferStorage( m_vbo, numVertices * sizeof( MD5::Vertex_t ), nullptr, GL_DYNAMIC_STORAGE_BIT );
     glNamedBufferStorage( m_wbo, numWeights * sizeof( MD5::Weight_t ), nullptr, GL_DYNAMIC_STORAGE_BIT );
-    glNamedBufferStorage( m_jbo, numJoints * sizeof( MD5::Joint_t ), nullptr, GL_DYNAMIC_STORAGE_BIT );
+    glNamedBufferStorage( m_jbo, numJoints * sizeof( glm::mat4 ), nullptr, GL_DYNAMIC_STORAGE_BIT );
 
     /// upload geometry data to the GPU
     for ( i = 0; i < numMeshes; i++)
     {
-        
         auto modelMesh = meshes[i];
         auto renderMesh = m_meshes[i];
         glNamedBufferSubData( m_ebo, renderMesh.firstTriangle * 3 * sizeof( uint32_t ), renderMesh.numTriangles * 3 * sizeof( uint32_t ), modelMesh.triangles.data() );
@@ -104,7 +104,24 @@ void crRendererModel::Create( const MD5::Model *in_model )
         glNamedBufferSubData( m_wbo, renderMesh.firstWeight * sizeof( MD5::Weight_t ), renderMesh.numWeights * sizeof( MD5::Weight_t ), modelMesh.weights.data() );        
     }
     
-    glNamedBufferSubData( m_jbo, 0, numJoints * sizeof( MD5::Joint_t ), const_cast<MD5::Model*>(in_model)->Joints().data() );
+    auto joints = const_cast<MD5::Model*>(in_model)->Joints();
+    for ( i = 0; i < numJoints; i++)
+    {
+        auto joint = joints[i];
+        glm::vec3 pos = joint.pos;
+
+        // atention to order (W, X, Y, Z)
+        glm::quat ori = glm::quat( joint.orient.w, joint.orient.x, joint.orient.y, joint.orient.z );
+
+        /// calculate joint matrix postion and orientation
+        glm::mat4 matRot = glm::mat4_cast( ori );
+        glm::mat4 matJoint = glm::translate(glm::mat4(1.0f), pos ) * matRot;
+
+        /// upload joint matrix to the GPU
+        glNamedBufferSubData( m_jbo, i * sizeof( glm::mat4 ), sizeof( glm::mat4 ), glm::value_ptr( matJoint ) );
+    }
+    
+
 
 }
 
@@ -222,8 +239,91 @@ void crRenderer::UpdateView( const uint32_t in_width, const uint32_t in_height, 
     glNamedBufferSubData( m_ubo, 0, sizeof( uniforms_t ), &uniforms );
 }
 
+static bool LoadShader( const char* in_path, const GLuint in_shader )
+{
+    GLint success = 0;
+    std::ifstream file( in_path );
+    if( file.is_open() == false )
+    {
+        std::cerr << "Failed to open shader file: " << in_path << std::endl;
+        glDeleteShader( in_shader );
+        return false;
+    }
+
+    std::string source( (std::istreambuf_iterator<char>(file)), std::istreambuf_iterator<char>() );
+    const char* src = source.c_str();
+    glShaderSource( in_shader, 1, &src, nullptr );
+    glCompileShader( in_shader );
+
+    glGetShaderiv( in_shader, GL_COMPILE_STATUS, &success );
+    if( success == GL_FALSE )
+    {
+        GLint infoLogLength = 0;
+
+        /// Get the length of the shader compilation error log and retrieve it from the OpenGL driver
+        glGetShaderiv( in_shader, GL_INFO_LOG_LENGTH, &infoLogLength );
+        std::string infoLog( infoLogLength, ' ' );
+        glGetShaderInfoLog( in_shader, infoLogLength, nullptr, &infoLog[0] );
+
+        /// print shader compilation error and release shader resources
+        std::cerr << "Failed to compile shader: " << in_path << " " << infoLog<< std::endl;
+        glDeleteShader( in_shader );
+        return false;
+    }
+
+    return true;
+}
+
 void crRenderer::CreateProgram(void)
 {
+    GLint success = 0;
+    GLuint vertexShader = glCreateShader( GL_VERTEX_SHADER );
+    GLuint geometryShader = glCreateShader( GL_GEOMETRY_SHADER ); 
+    GLuint fragmentShader = glCreateShader( GL_FRAGMENT_SHADER );
+
+    /// load shader sources 
+    if( !LoadShader( "./assets/shaders/render_md5.vs", vertexShader ) ) throw std::runtime_error( "Failed to load vertex shader" );
+    if( !LoadShader( "./assets/shaders/render_md5.gs", geometryShader ) ) throw std::runtime_error( "Failed to load geometry shader" );
+    if( !LoadShader( "./assets/shaders/render_md5.fs", fragmentShader ) ) throw std::runtime_error( "Failed to load fragment shader" );
+
+    /// create program handle
+    m_program = glCreateProgram();
+
+    /// attach shaders to the program
+    glAttachShader( m_program, vertexShader );
+    glAttachShader( m_program, geometryShader );
+    glAttachShader( m_program, fragmentShader );
+
+    // try to link the program
+    glLinkProgram( m_program );
+
+    /// Detach linked shaders.
+    glDetachShader( m_program, fragmentShader );
+    glDetachShader( m_program, geometryShader );
+    glDetachShader( m_program, vertexShader );
+
+    /// Release shader resources.
+    glDeleteShader( vertexShader );
+    glDeleteShader( geometryShader );
+    glDeleteShader( fragmentShader );
+
+    /// check if the program linked successfully    GLint success = 0;
+    glGetProgramiv( m_program, GL_LINK_STATUS, &success );
+    if( success == GL_FALSE )
+    {
+        GLint infoLogLength = 0;
+
+        /// Get the length of the program linking error log and retrieve it from the OpenGL driver
+        glGetProgramiv( m_program, GL_INFO_LOG_LENGTH, &infoLogLength );
+        std::string infoLog( infoLogLength, ' ' );
+        glGetProgramInfoLog( m_program, infoLogLength, nullptr, &infoLog[0] );
+
+        /// print program linking error and release program resources
+        std::cerr << "Failed to link program: " << infoLog << std::endl;
+        glDeleteProgram( m_program );
+        m_program = 0;
+        throw std::runtime_error( "Failed to link program" );   
+    }
 }
 
 void crRenderer::DestroyProgram(void)

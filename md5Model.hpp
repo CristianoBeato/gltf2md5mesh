@@ -34,14 +34,14 @@ namespace MD5
     {
         int             parentIndex = 0;
         size_t          inverseBind = 0;
-        glm::vec3       pos;    //
-        glm::vec3       orient;  // x, y, z (w é recomputado)
+        glm::vec3       pos;        //
+        glm::vec4       orient;     // x, y, z (w é recomputado)
         std::string     name;
     };
 
     struct Weight_t
     {
-        int         joint;
+        uint32_t    joint;
         float       bias;
         glm::vec3   pos;
     };
