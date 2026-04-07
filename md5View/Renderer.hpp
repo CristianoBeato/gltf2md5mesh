@@ -35,16 +35,27 @@ class crRendererModel
 public:
     crRendererModel( void );
     ~crRendererModel( void );
-
-    void Draw( const GLuint in_vao  );
-
+    void    Create( const MD5::Model* in_model );
+    void    Destroy( void );
+    void    Draw( const GLuint in_vao );
 
 private:
-    uint32_t    m_numTriangles;
-    GLuint      m_ebo;    // Triangle buffer
-    GLuint      m_vbo;    // Vertex buffer 
-    GLuint      m_wbo;    // Weights buffer 
-    GLuint      m_jbo;    // Joints buffer 
+    struct mesh_t
+    {
+        uint32_t                numTriangles;
+        uint32_t                numVertices;
+        uint32_t                numWeights;
+        uint32_t                firstTriangle;
+        uint32_t                firstVertex;
+        uint32_t                firstWeight;
+    };
+
+    uint32_t            m_numTriangles;
+    GLuint              m_ebo;    // Triangle buffer
+    GLuint              m_vbo;    // Vertex buffer 
+    GLuint              m_wbo;    // Weights buffer 
+    GLuint              m_jbo;    // Joints buffer
+    std::vector<mesh_t> m_meshes;
 };
 
 class crRenderer
@@ -53,9 +64,10 @@ public:
     crRenderer( void );
     ~crRenderer( void );
 
-    bool Startup( const uint32_t in_width, const uint32_t in_height, const MD5::Model* in_model );
-    void Shutdown( void );
-    void Render( void );
+    bool    Startup( const uint32_t in_width, const uint32_t in_height, const MD5::Model* in_model );
+    void    Shutdown( void );
+    void    Render( void );
+    void    UpdateView( const uint32_t in_width, const uint32_t in_height, glm::vec3 in_viewPos, glm::vec3 in_lookAt );
 
 private:
     uint32_t            m_width;

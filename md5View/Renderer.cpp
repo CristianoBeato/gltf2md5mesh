@@ -28,6 +28,9 @@
 
 #include "Renderer.hpp"
 
+#include <glm/gtc/matrix_transform.hpp>
+#include <glm/gtc/type_ptr.hpp>
+
 struct uniforms_t
 {
     glm::mat4   projection;
@@ -43,6 +46,95 @@ crRendererModel::~crRendererModel( void )
 {
 }
 
+void crRendererModel::Create( const MD5::Model *in_model )
+{
+    uint32_t i = 0;
+    uint32_t numMeshes = 0;
+    uint32_t numTriangles = 0;
+    uint32_t numVertices = 0;
+    uint32_t numWeights = 0;
+    uint32_t numJoints = 0;
+
+    /// Create buffer handlers
+    glCreateBuffers( 1, &m_ebo );
+    glCreateBuffers( 1, &m_vbo );
+    glCreateBuffers( 1, &m_wbo );
+    glCreateBuffers( 1, &m_jbo );
+
+    /// Get total joint count 
+    numJoints = const_cast<MD5::Model*>(in_model)->Joints().size();
+    numMeshes = const_cast<MD5::Model*>(in_model)->Meshes().size();
+    
+    /// Calculate total model data 
+    auto meshes = const_cast<MD5::Model*>(in_model)->Meshes();
+    for ( i = 0; i < numMeshes; i++)
+    {
+        auto mesh = meshes[i];
+        mesh_t renderMesh{};
+
+        /// set mesh buffer regions.
+        renderMesh.numTriangles = mesh.triangles.size();
+        renderMesh.numVertices = mesh.vertices.size();
+        renderMesh.numWeights = mesh.weights.size();
+        renderMesh.firstTriangle = numTriangles;
+        renderMesh.firstVertex = numVertices;
+        renderMesh.firstWeight = numWeights;
+        m_meshes.push_back( renderMesh );
+
+        /// update offsets and counts for the next mesh
+        numTriangles += renderMesh.numTriangles;
+        numVertices += renderMesh.numVertices;
+        numWeights += renderMesh.numWeights;
+    }
+
+    /// Allocate memory for the geometry data and upload it to the GPU
+    glNamedBufferStorage( m_ebo, numTriangles * 3 * sizeof( uint32_t ), nullptr, GL_DYNAMIC_STORAGE_BIT );
+    glNamedBufferStorage( m_vbo, numVertices * sizeof( MD5::Vertex_t ), nullptr, GL_DYNAMIC_STORAGE_BIT );
+    glNamedBufferStorage( m_wbo, numWeights * sizeof( MD5::Weight_t ), nullptr, GL_DYNAMIC_STORAGE_BIT );
+    glNamedBufferStorage( m_jbo, numJoints * sizeof( MD5::Joint_t ), nullptr, GL_DYNAMIC_STORAGE_BIT );
+
+    /// upload geometry data to the GPU
+    for ( i = 0; i < numMeshes; i++)
+    {
+        
+        auto modelMesh = meshes[i];
+        auto renderMesh = m_meshes[i];
+        glNamedBufferSubData( m_ebo, renderMesh.firstTriangle * 3 * sizeof( uint32_t ), renderMesh.numTriangles * 3 * sizeof( uint32_t ), modelMesh.triangles.data() );
+        glNamedBufferSubData( m_vbo, renderMesh.firstVertex * sizeof( MD5::Vertex_t ), renderMesh.numVertices * sizeof( MD5::Vertex_t ), modelMesh.vertices.data() );
+        glNamedBufferSubData( m_wbo, renderMesh.firstWeight * sizeof( MD5::Weight_t ), renderMesh.numWeights * sizeof( MD5::Weight_t ), modelMesh.weights.data() );        
+    }
+    
+    glNamedBufferSubData( m_jbo, 0, numJoints * sizeof( MD5::Joint_t ), const_cast<MD5::Model*>(in_model)->Joints().data() );
+
+}
+
+void crRendererModel::Destroy(void)
+{
+    if ( m_jbo )
+    {
+        glDeleteBuffers( 1, &m_jbo );
+        m_jbo = 0;
+    }
+    
+    if ( m_wbo )
+    {
+        glDeleteBuffers( 1, &m_wbo );
+        m_wbo = 0;
+    }
+
+    if ( m_vbo )
+    {
+        glDeleteBuffers( 1, &m_vbo );
+        m_vbo = 0;
+    }
+
+    if ( m_ebo )
+    {
+        glDeleteBuffers( 1, &m_ebo );
+        m_ebo = 0;
+    }
+}
+
 void crRendererModel::Draw( const GLuint in_vao )
 {
     /// bind element buffer that store the model triangles
@@ -51,16 +143,24 @@ void crRendererModel::Draw( const GLuint in_vao )
     /// bind vertex buffer that store the model texture coordinates and weights information
     glVertexArrayVertexBuffer( in_vao, 0, m_vbo, 0, sizeof( MD5::Vertex_t ) );
 
-    /// bind weights buffer that store the model weights information
-    glBindBufferBase( GL_SHADER_STORAGE_BUFFER, 1, m_wbo );
-
     /// bind joints buffer that store the model joints information
     glBindBufferBase( GL_SHADER_STORAGE_BUFFER, 2, m_jbo );
 
-    glDrawElements( GL_TRIANGLES, m_numTriangles, GL_UNSIGNED_INT, nullptr );
+    for ( uint32_t i = 0; i < m_meshes.size(); i++ )
+    {
+        /// bind weights buffer that store the model weights information
+        glBindBufferRange( GL_SHADER_STORAGE_BUFFER, 1, m_wbo, m_meshes[i].firstWeight * sizeof( MD5::Weight_t ), m_meshes[i].numWeights * sizeof( MD5::Weight_t ) );
+        glDrawElementsBaseVertex( GL_TRIANGLES, m_meshes[i].numTriangles * 3, GL_UNSIGNED_INT, (void*)(m_meshes[i].firstTriangle * 3 * sizeof( uint32_t )), m_meshes[i].firstVertex );
+    }
 }
 
-crRenderer::crRenderer( void )
+crRenderer::crRenderer( void ) : 
+    m_width( 0 ),
+    m_height( 0 ),
+    m_vao( 0 ),
+    m_program( 0 ),
+    m_ubo( 0 ),
+    m_model( nullptr )
 {
 }
 
@@ -104,6 +204,22 @@ void crRenderer::Render(void)
     glBindBufferBase( GL_UNIFORM_BUFFER, 0, 0 );
     glUseProgram( 0 );
     glBindVertexArray( 0 );
+}
+
+void crRenderer::UpdateView( const uint32_t in_width, const uint32_t in_height, glm::vec3 in_viewPos, glm::vec3 in_lookAt )
+{
+    uniforms_t uniforms{};
+    m_width = in_width;
+    m_height = in_height;
+
+    /// update projection matrix
+    float aspectRatio = (float)m_width / (float)m_height;
+    uniforms.projection = glm::perspective( glm::radians( 45.0f ), aspectRatio, 0.1f, 100.0f );
+    uniforms.view = glm::lookAt( in_viewPos, in_lookAt, glm::vec3( 0.0f, 1.0f, 0.0f ) );
+    uniforms.model = glm::mat4( 1.0f );
+
+    /// update model transform and view matrices in the uniform buffer object
+    glNamedBufferSubData( m_ubo, 0, sizeof( uniforms_t ), &uniforms );
 }
 
 void crRenderer::CreateProgram(void)
