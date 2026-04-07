@@ -144,19 +144,20 @@ void LoadJoints( const gltf::Asset& asset, const gltf::Skin& skin, MD5::Model& o
             j.name = node.name.c_str();
 
         j.parentIndex = parent[nodeIndex];
-        // Coleta transform
-        glm::vec3 t(0);
-        glm::quat r( 1.0f, 0.0f, 0.0f, 0.0f);
-        glm::vec3 s(1);
-
+        
         auto transform = std::get<gltf::TRS>( node.transform );
-        t = glm::vec3( transform.translation.x(), transform.translation.y(), transform.translation.z() );
-        r = glm::quat( transform.rotation.w(), transform.rotation.x(), transform.rotation.y(), transform.rotation.z());
-        s = glm::vec3( transform.scale.x(), transform.scale.y(), transform.scale.z() );
+
+        /// get transform
+        glm::vec3 t = glm::vec3( transform.translation.x(), transform.translation.y(), transform.translation.z() );
+ 
+        /// get rotation
+        glm::quat r = glm::quat( transform.rotation.w(), transform.rotation.x(), transform.rotation.y(), transform.rotation.z());
+        
+        /// get scaling ( not used in MD5Mesh )
+        glm::vec3 s = glm::vec3( transform.scale.x(), transform.scale.y(), transform.scale.z() );
 
         // MD5 usa orientação como vec3, faltando ‘w’
-        glm::quat q = r;  
-        j.orient = glm::vec3(q.x, q.y, q.z);
+        j.orient = r;
         j.pos = t;
     }
 }

@@ -11,7 +11,7 @@ option( ENABLE_VIEWER "Enable the md5mesh viewer" ON )
 set( CMAKE_CXX_STANDARD 17 )
 
 ## Required external libraries
-find_package( simdjson REQUIRED ) # just bypass the current problem whit my MingW64 build, remove on future
+#find_package( simdjson REQUIRED ) # just bypass the current problem whit my MingW64 build, remove on future
 find_package( fastgltf REQUIRED )
 find_package( glm REQUIRED )
 
@@ -78,6 +78,7 @@ if( ENABLE_VIEWER )
             <string>
             <stdexcept>
             <glm/glm.hpp>
+            <glm/gtc/quaternion.hpp>
         PRIVATE
             "$<$<COMPILE_LANGUAGE:CXX>:${CMAKE_CURRENT_SOURCE_DIR}/md5Model.hpp>"
             "$<$<COMPILE_LANGUAGE:CXX>:${CMAKE_CURRENT_SOURCE_DIR}/md5View/OpenGL.hpp>"

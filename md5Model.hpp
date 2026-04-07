@@ -35,7 +35,7 @@ namespace MD5
         int             parentIndex = 0;
         size_t          inverseBind = 0;
         glm::vec3       pos;        //
-        glm::vec4       orient;     // x, y, z (w é recomputado)
+        glm::quat       orient;     // x, y, z (w é recomputado quando carregado)
         std::string     name;
     };
 
