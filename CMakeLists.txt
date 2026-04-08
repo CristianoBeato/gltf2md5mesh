@@ -11,7 +11,12 @@ option( ENABLE_VIEWER "Enable the md5mesh viewer" ON )
 set( CMAKE_CXX_STANDARD 17 )
 
 ## Required external libraries
-#find_package( simdjson REQUIRED ) # just bypass the current problem whit my MingW64 build, remove on future
+if( MINGW OR MSVC ) ## Atually, simdjson is not working with my current MingW64 build on windows
+                    ## but on my Clang on linux ( Debian13 ) its not required to include the package externaly from
+                    ## fastgltf, so just bypass it for now, remove on future fix
+    find_package( simdjson REQUIRED )
+endif( MINGW )
+
 find_package( fastgltf REQUIRED )
 find_package( glm REQUIRED )
 
@@ -54,6 +59,8 @@ if( ENABLE_VIEWER )
     find_package( SDL3 REQUIRED )
 
     set( MD5VIEWER_SOURCES
+        ${CMAKE_SOURCE_DIR}/md5Model.cpp
+        ${CMAKE_SOURCE_DIR}/md5Model.hpp
         ${CMAKE_SOURCE_DIR}/md5View/md5View.cpp
         ${CMAKE_SOURCE_DIR}/md5View/md5View.hpp
         ${CMAKE_SOURCE_DIR}/md5View/Renderer.cpp

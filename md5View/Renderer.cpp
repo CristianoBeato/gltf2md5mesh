@@ -119,9 +119,6 @@ void crRendererModel::Create( const MD5::Model *in_model )
         /// upload joint matrix to the GPU
         glNamedBufferSubData( m_jbo, i * sizeof( glm::mat4 ), sizeof( glm::mat4 ), glm::value_ptr( matJoint ) );
     }
-    
-
-
 }
 
 void crRendererModel::Destroy(void)
@@ -197,9 +194,26 @@ bool crRenderer::Startup( const uint32_t in_width, const uint32_t in_height )
 
 void crRenderer::Shutdown(void)
 {
+    if( m_model )
+    {
+        m_model->Destroy();
+        delete m_model;
+        m_model = nullptr;
+    }
+
     DestroyBuffers();
     DestroyVertexArray();
     DestroyProgram();
+}
+
+void crRenderer::LoadModel( const MD5::Model *in_model )
+{
+    // ignore null model
+    if( in_model == nullptr )
+        return;
+
+    m_model = new crRendererModel();
+    m_model->Create( in_model );
 }
 
 void crRenderer::Render(void)

@@ -49,40 +49,21 @@ static const char help_string[] =
 /// main thread entry point
 int main( int argc, char* argv[] )
 {
-	std::filesystem::path inMeshPath;
-    std::filesystem::path inAnimPath;
-
-    for ( int i = 0; i < argc; i++)
+	/// this is not the best way to parse command line arguments, 
+	/// but it is enough for this simple application, 
+	/// allows us to easily pass the command line arguments from the Visual Studio debugger.
+	/// and bypass some errorst that i have wen write batch scripts to show models. 
+	std::stringstream ss;
+	for ( int i = 0; i < argc; i++)
 	{
-		/// print to console the help string and exit 
-		if ( std::strncmp( argv[i], arg_help, std::strlen(arg_help) ) == 0 )
-        {
-            std::cout << help_string << std::endl;
-            return EXIT_SUCCESS;
-        }
-
-		/// parse input mesh path
-		else if ( std::strncmp( argv[i], arg_input, std::strlen( arg_input ) ) == 0 )
-		{
-			if ( ( i + 1 ) >= argc )
-				break;
-
-			inMeshPath = argv[i + 1];
-		}
-		/// parse input animation path
-		else if ( std::strncmp( argv[i], arg_output, std::strlen( arg_output ) ) == 0 )
-		{
-			 if ( ( i + 1 ) >= argc )
-				break;
-
-			inAnimPath = argv[i + 1];
-		}
+		ss << argv[i] << " ";
 	}
 
 	try
 	{	
 		crMD5View md5View = crMD5View();
-		md5View.OpenMesh( inMeshPath.string(), inAnimPath.string() );
+		//md5View.OpenMesh( inMeshPath.string(), inAnimPath.string() );
+		md5View.OpenMesh( ss );
 		md5View.Run();		
 	}
 	catch(const std::exception& e)
@@ -128,19 +109,55 @@ crMD5View::~crMD5View( void )
 	SDL_Quit();
 }
 
+void crMD5View::OpenMesh( std::stringstream &in_cmdline )
+{
+	std::filesystem::path inMeshPath;
+    std::filesystem::path inAnimPath;
+
+	std::string line;
+	while ( std::getline( in_cmdline, line, ' ' ) )
+	{
+		/// parse input mesh path
+		if ( std::strncmp( line.c_str(), arg_input, std::strlen( arg_input ) ) == 0 )
+		{
+			if ( !std::getline( in_cmdline, line, ' ' ) )
+				break;
+
+			inMeshPath = line;
+		}
+		/// parse input animation path
+		else if ( std::strncmp( line.c_str(), arg_output, std::strlen( arg_output ) ) == 0 )
+		{
+			 if ( !std::getline( in_cmdline, line, ' ' ) )
+				break;
+
+			inAnimPath = line;
+		}
+	}
+
+	OpenMesh( inMeshPath.string(), inAnimPath.string() );
+}
+
 void crMD5View::OpenMesh( const std::string &in_meshPath, const std::string &in_animPath )
 {
+	if ( in_meshPath.empty() )
+	 	throw std::runtime_error( "No input mesh specified. Use --mesh <path> to specify the input .md5mesh file." );
+
 	MD5::Model *model = new MD5::Model();
 	model->Read( in_meshPath.c_str() );
 	m_renderer->LoadModel( model );
 	model->Clear();
 	delete model;
+
+	/// TODO: load animation if specified
 }
 
 void crMD5View::Run( void )
 {
 	uint64_t frameStartTime = 0;
 	uint64_t frameEndTime = 0;
+
+	m_renderer->UpdateView( 800, 600, glm::vec3( 0.0f, -0.0f, 5.0f ), glm::vec3( 0.0f, 0.0f, 0.0f ) );
 	while ( m_state != 0 )
 	{
 		frameStartTime = SDL_GetTicks();

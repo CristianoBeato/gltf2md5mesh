@@ -1,9 +1,25 @@
 
 #include "md5Model.hpp"
 
+#include <glm/glm.hpp>
+#include <glm/gtc/quaternion.hpp>
+#include <glm/gtc/matrix_transform.hpp>
+
 #include <iomanip>
 #include <fstream>
 #include <sstream>
+
+void MD5::Joint_t::ComputeW(void)
+{
+    float t = 1.0f - ( orient.x * orient.x ) - (orient.y * orient.y) - (orient.z * orient.z);
+    orient.w = t < 0.0f ? 0.0f : -std::sqrt( t );
+}
+
+void MD5::Joint_t::ComputeInverseBindPose(void)
+{
+    glm::mat4 transform = glm::translate( glm::mat4(1.0f), pos ) * glm::mat4_cast( orient );
+    glm::mat4 inverseBind = glm::inverse( transform );
+}
 
 MD5::Model::Model(void)
 {
@@ -13,7 +29,7 @@ MD5::Model::~Model(void)
 {
 }
 
-void MD5::Model::Read(const std::string &in_path)
+void MD5::Model::Read( const std::string &in_path )
 {
     uint32_t i = 0;
     uint32_t jointIndex = 0;
