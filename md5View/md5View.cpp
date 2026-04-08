@@ -29,7 +29,6 @@
 #include "md5View.hpp"
 #include <SDL3/SDL.h>
 #include <SDL3/SDL_main.h>
-#include <filesystem>
 
 static const char arg_input[] = "--mesh";  // input md5mesh
 static const char arg_output[] = "--animation";  // input md5anim
@@ -62,7 +61,6 @@ int main( int argc, char* argv[] )
 	try
 	{	
 		crMD5View md5View = crMD5View();
-		//md5View.OpenMesh( inMeshPath.string(), inAnimPath.string() );
 		md5View.OpenMesh( ss );
 		md5View.Run();		
 	}
@@ -114,34 +112,42 @@ void crMD5View::OpenMesh( std::stringstream &in_cmdline )
 	std::filesystem::path inMeshPath;
     std::filesystem::path inAnimPath;
 
-	std::string line;
-	while ( std::getline( in_cmdline, line, ' ' ) )
+	while ( !in_cmdline.eof() )
 	{
+		std::string token;
+		in_cmdline >> token;
 		/// parse input mesh path
-		if ( std::strncmp( line.c_str(), arg_input, std::strlen( arg_input ) ) == 0 )
+		if ( std::strncmp( token.c_str(), arg_input, std::strlen( arg_input ) ) == 0 )
 		{
-			if ( !std::getline( in_cmdline, line, ' ' ) )
-				break;
-
-			inMeshPath = line;
+			in_cmdline >> std::quoted( token );
+			if ( token.empty() )
+				break;			
+			
+			inMeshPath = token;
 		}
 		/// parse input animation path
-		else if ( std::strncmp( line.c_str(), arg_output, std::strlen( arg_output ) ) == 0 )
+		else if ( std::strncmp( token.c_str(), arg_output, std::strlen( arg_output ) ) == 0 )
 		{
-			 if ( !std::getline( in_cmdline, line, ' ' ) )
-				break;
-
-			inAnimPath = line;
+			in_cmdline >> std::quoted( token );
+			if ( token.empty() )
+				break;			
+			
+			inAnimPath = token;
 		}
 	}
-
+	
 	OpenMesh( inMeshPath.string(), inAnimPath.string() );
 }
 
-void crMD5View::OpenMesh( const std::string &in_meshPath, const std::string &in_animPath )
+void crMD5View::OpenMesh( const std::filesystem::path &in_meshPath, const std::filesystem::path &in_animPath )
 {
+	/// 
 	if ( in_meshPath.empty() )
 	 	throw std::runtime_error( "No input mesh specified. Use --mesh <path> to specify the input .md5mesh file." );
+
+	/// 
+	if( !std::filesystem::exists( in_meshPath ) )
+		throw std::runtime_error( std::string( "No valid input mesh file specified." ) + in_meshPath.string() );
 
 	MD5::Model *model = new MD5::Model();
 	model->Read( in_meshPath.c_str() );

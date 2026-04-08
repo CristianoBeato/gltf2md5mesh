@@ -31,6 +31,7 @@
 
 #include "OpenGL.hpp"
 #include "Renderer.hpp"
+#include <filesystem>
 
 class crMD5View
 {
@@ -38,7 +39,7 @@ public:
     crMD5View( void );
     ~crMD5View( void );
 	void 	OpenMesh( std::stringstream &in_cmdline );
-	void	OpenMesh( const std::string& in_meshPath, const std::string& in_animPath );
+	void	OpenMesh( const std::filesystem::path& in_meshPath, const std::filesystem::path& in_animPath );
 	void	Run( void );
 
 private:
