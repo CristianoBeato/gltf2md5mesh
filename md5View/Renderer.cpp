@@ -87,25 +87,36 @@ void crRendererModel::Create( const MD5::Model *in_model )
         numWeights += renderMesh.numWeights;
     }
 
-    /// Allocate memory for the geometry data and upload it to the GPU
-    glNamedBufferStorage( m_ebo, numTriangles * 3 * sizeof( uint32_t ), nullptr, GL_DYNAMIC_STORAGE_BIT );
+    /// Allocate memory for the geometry data.
+    glNamedBufferStorage( m_ebo, numTriangles * sizeof( MD5::Triangle_t ), nullptr, GL_DYNAMIC_STORAGE_BIT );
     glNamedBufferStorage( m_vbo, numVertices * sizeof( MD5::Vertex_t ), nullptr, GL_DYNAMIC_STORAGE_BIT );
     glNamedBufferStorage( m_wbo, numWeights * sizeof( MD5::Weight_t ), nullptr, GL_DYNAMIC_STORAGE_BIT );
-    glNamedBufferStorage( m_jbo, numJoints * sizeof( glm::mat4 ), nullptr, GL_DYNAMIC_STORAGE_BIT );
 
-    /// upload geometry data to the GPU
+#if 0
+    glNamedBufferStorage( m_jbo, numJoints * sizeof( glm::mat4 ), nullptr, GL_DYNAMIC_STORAGE_BIT );
+#else
+    struct shader_joint_t
+    {
+        glm::vec4 pos;
+        glm::vec4 rot;
+    };
+
+    glNamedBufferStorage( m_jbo, numJoints * sizeof( shader_joint_t ), nullptr, GL_DYNAMIC_STORAGE_BIT );
+#endif
+
+    /// Upload geometry data to the GPU.
     for ( i = 0; i < numMeshes; i++)
     {
         auto modelMesh = meshes[i];
         auto renderMesh = m_meshes[i];
 
-        /// upload triangles indices.
+        /// Upload triangles indices.
         glNamedBufferSubData( m_ebo, renderMesh.firstTriangle * sizeof( MD5::Triangle_t ), renderMesh.numTriangles * sizeof( MD5::Triangle_t ), modelMesh.triangles.data() );
  
-        /// upload vertices.
+        /// Upload vertices.
         glNamedBufferSubData( m_vbo, renderMesh.firstVertex * sizeof( MD5::Vertex_t ), renderMesh.numVertices * sizeof( MD5::Vertex_t ), modelMesh.vertices.data() );
 
-        /// upload weights.
+        /// Upload weights.
         glNamedBufferSubData( m_wbo, renderMesh.firstWeight * sizeof( MD5::Weight_t ), renderMesh.numWeights * sizeof( MD5::Weight_t ), modelMesh.weights.data() );        
     }
     
@@ -113,17 +124,20 @@ void crRendererModel::Create( const MD5::Model *in_model )
     for ( i = 0; i < numJoints; i++)
     {
         auto joint = joints[i];
-        glm::vec3 pos = joint.pos;
-
-        // atention to order (W, X, Y, Z)
-        glm::quat ori = glm::quat( joint.orient.w, joint.orient.x, joint.orient.y, joint.orient.z );
-
-        /// calculate joint matrix postion and orientation
-        glm::mat4 matRot = glm::mat4_cast( ori );
-        glm::mat4 matJoint = glm::translate(glm::mat4(1.0f), pos ) * matRot;
+    
+#if 0
+        auto matJoint = joint.ComputeInverseBindPose();
 
         /// upload joint matrix to the GPU
         glNamedBufferSubData( m_jbo, i * sizeof( glm::mat4 ), sizeof( glm::mat4 ), glm::value_ptr( matJoint ) );
+#else
+        shader_joint_t j{};
+        j.pos = glm::vec4( joint.pos.x, joint.pos.y, joint.pos.z, 1.0f );
+        j.rot = glm::vec4( joint.orient.x, joint.orient.y, joint.orient.z, joint.orient.w );
+
+        /// upload joint matrix to the GPU
+        glNamedBufferSubData( m_jbo, i * sizeof( shader_joint_t ), sizeof( shader_joint_t ), &j );
+#endif
     }
 }
 
@@ -169,7 +183,7 @@ void crRendererModel::Draw( const GLuint in_vao )
     {
         /// bind weights buffer that store the model weights information
         glBindBufferRange( GL_SHADER_STORAGE_BUFFER, WEIGHTS_BINDING_POINT, m_wbo, m_meshes[i].firstWeight * sizeof( MD5::Weight_t ), m_meshes[i].numWeights * sizeof( MD5::Weight_t ) );
-        glDrawElementsBaseVertex( GL_TRIANGLES, m_meshes[i].numTriangles * 3, GL_UNSIGNED_INT, (void*)(m_meshes[i].firstTriangle * 3 * sizeof( uint32_t )), m_meshes[i].firstVertex );
+        glDrawElementsBaseVertex( GL_TRIANGLES, m_meshes[i].numTriangles * 3, GL_UNSIGNED_INT, (void*)(m_meshes[i].firstTriangle * sizeof( MD5::Triangle_t )), m_meshes[i].firstVertex );
     }
 }
 
@@ -224,7 +238,7 @@ void crRenderer::LoadModel( const MD5::Model *in_model )
 
 void crRenderer::Render(void)
 {
-    glClearColor( 0.2f, 0.3f, 0.6f, 1.0f );
+    glClearColor( 0.2f, 0.4f, 0.4f, 1.0f );
     glClear( GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT );
 
     glViewport( 0, 0, m_width, m_height );

@@ -39,7 +39,7 @@ namespace MD5
         std::string     name;
 
         void ComputeW( void );
-        void ComputeInverseBindPose( void );
+        glm::mat4 ComputeInverseBindPose( void ) const;
     };
 
     struct Weight_t
@@ -58,7 +58,9 @@ namespace MD5
 
     struct Triangle_t
     {
-        int v0, v1, v2;
+        /// @brief vertex indices that define the triangle, these indices refer to the vertex array of the mesh.
+        /// We use unsigned int (uint32_t) since openGL glDrawElementsBaseVertex don't support GL_INT as index type.
+        uint32_t v0, v1, v2;
     };
 
     struct Mesh_t 
