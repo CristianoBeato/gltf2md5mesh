@@ -106,7 +106,7 @@ void MD5::Model::Read( const std::string &in_path )
                 joint.parentIndex = parentIndex;
                 joint.pos = glm::vec3( posX, posY, posZ );
                 joint.orient = glm::vec3( orientX, orientY, orientZ );
-
+                joint.ComputeW();
                 m_joints[jointIndex++] = joint;
             }
         }
