@@ -31,6 +31,17 @@
 #include <glm/gtc/matrix_transform.hpp>
 #include <glm/gtc/type_ptr.hpp>
 
+struct render_weight_t 
+{
+    uint32_t    joint;
+    float       bias;
+    glm::vec2   dummy; // Padding para alinhar a posição
+    glm::vec3   pos;
+    float       dummy2;   // Padding final
+};
+
+static_assert( sizeof(render_weight_t) % 16 == 0, "Struct deve ser múltiplo de 16 bytes!" );
+
 struct uniforms_t
 {
     glm::mat4   projection;
@@ -54,6 +65,11 @@ void crRendererModel::Create( const MD5::Model *in_model )
     uint32_t numVertices = 0;
     uint32_t numWeights = 0;
     uint32_t numJoints = 0;
+
+    glm::mat4*          rjoints = nullptr;
+    MD5::Triangle_t*    triangles = nullptr;
+    MD5::Vertex_t*      vertexes = nullptr;
+    render_weight_t*    renderWeight = nullptr;
 
     /// Create buffer handlers
     glCreateBuffers( 1, &m_ebo );
@@ -88,21 +104,15 @@ void crRendererModel::Create( const MD5::Model *in_model )
     }
 
     /// Allocate memory for the geometry data.
-    glNamedBufferStorage( m_ebo, numTriangles * sizeof( MD5::Triangle_t ), nullptr, GL_DYNAMIC_STORAGE_BIT );
-    glNamedBufferStorage( m_vbo, numVertices * sizeof( MD5::Vertex_t ), nullptr, GL_DYNAMIC_STORAGE_BIT );
-    glNamedBufferStorage( m_wbo, numWeights * sizeof( MD5::Weight_t ), nullptr, GL_DYNAMIC_STORAGE_BIT );
+    glNamedBufferStorage( m_ebo, numTriangles * sizeof( MD5::Triangle_t ), nullptr, GL_MAP_WRITE_BIT );
+    glNamedBufferStorage( m_vbo, numVertices * sizeof( MD5::Vertex_t ), nullptr, GL_MAP_WRITE_BIT );
+    glNamedBufferStorage( m_wbo, numWeights * sizeof( render_weight_t ), nullptr, GL_MAP_WRITE_BIT );
+    glNamedBufferStorage( m_jbo, numJoints * sizeof( glm::mat4 ), nullptr, GL_MAP_WRITE_BIT );
 
-#if 0
-    glNamedBufferStorage( m_jbo, numJoints * sizeof( glm::mat4 ), nullptr, GL_DYNAMIC_STORAGE_BIT );
-#else
-    struct shader_joint_t
-    {
-        glm::vec4 pos;
-        glm::vec4 rot;
-    };
-
-    glNamedBufferStorage( m_jbo, numJoints * sizeof( shader_joint_t ), nullptr, GL_DYNAMIC_STORAGE_BIT );
-#endif
+    triangles = static_cast<MD5::Triangle_t*>( glMapNamedBufferRange( m_ebo, 0, numTriangles * sizeof( MD5::Triangle_t ), GL_MAP_WRITE_BIT ) );
+    vertexes = static_cast<MD5::Vertex_t*>( glMapNamedBufferRange( m_vbo, 0, numVertices * sizeof( MD5::Vertex_t ), GL_MAP_WRITE_BIT ) );
+    renderWeight = static_cast<render_weight_t*>( glMapNamedBufferRange( m_wbo, 0, numWeights * sizeof( render_weight_t ), GL_MAP_WRITE_BIT ) );
+    rjoints = static_cast<glm::mat4*>( glMapNamedBufferRange( m_jbo, 0, numJoints * sizeof( glm::mat4 ), GL_MAP_WRITE_BIT ) );
 
     /// Upload geometry data to the GPU.
     for ( i = 0; i < numMeshes; i++)
@@ -111,34 +121,40 @@ void crRendererModel::Create( const MD5::Model *in_model )
         auto renderMesh = m_meshes[i];
 
         /// Upload triangles indices.
-        glNamedBufferSubData( m_ebo, renderMesh.firstTriangle * sizeof( MD5::Triangle_t ), renderMesh.numTriangles * sizeof( MD5::Triangle_t ), modelMesh.triangles.data() );
- 
+        //glNamedBufferSubData( m_ebo, renderMesh.firstTriangle * sizeof( MD5::Triangle_t ), renderMesh.numTriangles * sizeof( MD5::Triangle_t ), modelMesh.triangles.data() );
+        std::memcpy( &triangles[renderMesh.firstTriangle], modelMesh.triangles.data(), sizeof(MD5::Triangle_t) * renderMesh.numTriangles );
+
         /// Upload vertices.
-        glNamedBufferSubData( m_vbo, renderMesh.firstVertex * sizeof( MD5::Vertex_t ), renderMesh.numVertices * sizeof( MD5::Vertex_t ), modelMesh.vertices.data() );
+        //glNamedBufferSubData( m_vbo, renderMesh.firstVertex * sizeof( MD5::Vertex_t ), renderMesh.numVertices * sizeof( MD5::Vertex_t ), modelMesh.vertices.data() );
+        std::memcpy( &vertexes[renderMesh.firstVertex], modelMesh.vertices.data(), renderMesh.numVertices * sizeof( MD5::Vertex_t ) );
 
         /// Upload weights.
-        glNamedBufferSubData( m_wbo, renderMesh.firstWeight * sizeof( MD5::Weight_t ), renderMesh.numWeights * sizeof( MD5::Weight_t ), modelMesh.weights.data() );        
+        //glNamedBufferSubData( m_wbo, renderMesh.firstWeight * sizeof( MD5::Weight_t ), renderMesh.numWeights * sizeof( MD5::Weight_t ), modelMesh.weights.data() );
+        for ( uint32_t j = 0; j < renderMesh.numWeights; j++)
+        {
+            uint32_t index = renderMesh.firstWeight + j;
+            renderWeight[index].bias = modelMesh.weights[i].bias;
+            renderWeight[index].joint = modelMesh.weights[i].joint;
+            renderWeight[index].pos = modelMesh.weights[i].pos;
+        }
+        
     }
     
     auto joints = const_cast<MD5::Model*>(in_model)->Joints();
     for ( i = 0; i < numJoints; i++)
     {
         auto joint = joints[i];
-    
-#if 0
         auto matJoint = joint.ComputeInverseBindPose();
 
         /// upload joint matrix to the GPU
-        glNamedBufferSubData( m_jbo, i * sizeof( glm::mat4 ), sizeof( glm::mat4 ), glm::value_ptr( matJoint ) );
-#else
-        shader_joint_t j{};
-        j.pos = glm::vec4( joint.pos.x, joint.pos.y, joint.pos.z, 1.0f );
-        j.rot = glm::vec4( joint.orient.x, joint.orient.y, joint.orient.z, joint.orient.w );
-
-        /// upload joint matrix to the GPU
-        glNamedBufferSubData( m_jbo, i * sizeof( shader_joint_t ), sizeof( shader_joint_t ), &j );
-#endif
+        //glNamedBufferSubData( m_jbo, i * sizeof( glm::mat4 ), sizeof( glm::mat4 ), glm::value_ptr( matJoint ) );
+        rjoints[i] = matJoint;
     }
+
+    glUnmapNamedBuffer( m_jbo );
+    glUnmapNamedBuffer( m_wbo );
+    glUnmapNamedBuffer( m_vbo );
+    glUnmapNamedBuffer( m_ebo );
 }
 
 void crRendererModel::Destroy(void)
@@ -382,8 +398,8 @@ void crRenderer::CreateVertexArray(void)
 
     /// set vertex attributes format
     glVertexArrayAttribFormat( m_vao, 0, 2, GL_FLOAT, GL_FALSE, offsetof( MD5::Vertex_t, uv ) );
-    glVertexArrayAttribFormat( m_vao, 1, 1, GL_INT, GL_FALSE, offsetof( MD5::Vertex_t, startWeight ) );
-    glVertexArrayAttribFormat( m_vao, 2, 1, GL_INT, GL_FALSE, offsetof( MD5::Vertex_t, weightCount ) );
+    glVertexArrayAttribFormat( m_vao, 1, 1, GL_UNSIGNED_INT, GL_FALSE, offsetof( MD5::Vertex_t, startWeight ) );
+    glVertexArrayAttribFormat( m_vao, 2, 1, GL_UNSIGNED_INT, GL_FALSE, offsetof( MD5::Vertex_t, weightCount ) );
 
     /// set vertex attributes binding
     glVertexArrayAttribBinding( m_vao, 0, 0 );
