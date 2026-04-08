@@ -36,6 +36,8 @@ void MD5::Model::Read( const std::string &in_path )
     uint32_t meshIndex = 0;
     std::string line;
 
+    std::cout << "Reading md5mesh file: " << in_path << std::endl;
+
     std::ifstream file( in_path );
     if ( !file.is_open() )
         throw std::runtime_error( "Erro: failed to read model" );

@@ -51,9 +51,9 @@ namespace MD5
 
     struct Vertex_t 
     {
-        glm::vec2       uv;           /// texture coordinates
-        int             startWeight;  /// index of the first weight in the weights array
-        int             weightCount;  /// number of weights associated with this vertex
+        glm::vec2   uv;           /// texture coordinates
+        uint32_t    startWeight;  /// index of the first weight in the weights array
+        uint32_t    weightCount;  /// number of weights associated with this vertex
     };
 
     struct Triangle_t
