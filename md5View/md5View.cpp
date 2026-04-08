@@ -157,7 +157,7 @@ void crMD5View::Run( void )
 	uint64_t frameStartTime = 0;
 	uint64_t frameEndTime = 0;
 
-	m_renderer->UpdateView( 800, 600, glm::vec3( 0.0f, -0.0f, 5.0f ), glm::vec3( 0.0f, 0.0f, 0.0f ) );
+	m_renderer->UpdateView( 800, 600, glm::vec3( 0.0f, -5.0f, 2.0f ), glm::vec3( 0.0f, 0.0f, 0.0f ) );
 	while ( m_state != 0 )
 	{
 		frameStartTime = SDL_GetTicks();

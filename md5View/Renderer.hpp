@@ -30,6 +30,10 @@
 #ifndef __RENDERER_HPP__
 #define __RENDERER_HPP__
 
+inline constexpr uint32_t UNIFORM_BINDING_POINT = 0;
+inline constexpr uint32_t WEIGHTS_BINDING_POINT = 1;
+inline constexpr uint32_t JOINTS_BINDING_POINT = 2;
+
 class crRendererModel
 {
 public:

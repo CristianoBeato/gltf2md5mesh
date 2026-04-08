@@ -98,8 +98,14 @@ void crRendererModel::Create( const MD5::Model *in_model )
     {
         auto modelMesh = meshes[i];
         auto renderMesh = m_meshes[i];
-        glNamedBufferSubData( m_ebo, renderMesh.firstTriangle * 3 * sizeof( uint32_t ), renderMesh.numTriangles * 3 * sizeof( uint32_t ), modelMesh.triangles.data() );
+
+        /// upload triangles indices.
+        glNamedBufferSubData( m_ebo, renderMesh.firstTriangle * sizeof( MD5::Triangle_t ), renderMesh.numTriangles * sizeof( MD5::Triangle_t ), modelMesh.triangles.data() );
+ 
+        /// upload vertices.
         glNamedBufferSubData( m_vbo, renderMesh.firstVertex * sizeof( MD5::Vertex_t ), renderMesh.numVertices * sizeof( MD5::Vertex_t ), modelMesh.vertices.data() );
+
+        /// upload weights.
         glNamedBufferSubData( m_wbo, renderMesh.firstWeight * sizeof( MD5::Weight_t ), renderMesh.numWeights * sizeof( MD5::Weight_t ), modelMesh.weights.data() );        
     }
     
@@ -157,12 +163,12 @@ void crRendererModel::Draw( const GLuint in_vao )
     glVertexArrayVertexBuffer( in_vao, 0, m_vbo, 0, sizeof( MD5::Vertex_t ) );
 
     /// bind joints buffer that store the model joints information
-    glBindBufferBase( GL_SHADER_STORAGE_BUFFER, 2, m_jbo );
+    glBindBufferBase( GL_SHADER_STORAGE_BUFFER, JOINTS_BINDING_POINT, m_jbo );
 
     for ( uint32_t i = 0; i < m_meshes.size(); i++ )
     {
         /// bind weights buffer that store the model weights information
-        glBindBufferRange( GL_SHADER_STORAGE_BUFFER, 1, m_wbo, m_meshes[i].firstWeight * sizeof( MD5::Weight_t ), m_meshes[i].numWeights * sizeof( MD5::Weight_t ) );
+        glBindBufferRange( GL_SHADER_STORAGE_BUFFER, WEIGHTS_BINDING_POINT, m_wbo, m_meshes[i].firstWeight * sizeof( MD5::Weight_t ), m_meshes[i].numWeights * sizeof( MD5::Weight_t ) );
         glDrawElementsBaseVertex( GL_TRIANGLES, m_meshes[i].numTriangles * 3, GL_UNSIGNED_INT, (void*)(m_meshes[i].firstTriangle * 3 * sizeof( uint32_t )), m_meshes[i].firstVertex );
     }
 }
@@ -225,13 +231,16 @@ void crRenderer::Render(void)
 
     glBindVertexArray( m_vao );
     glUseProgram( m_program );
-    glBindBufferBase( GL_UNIFORM_BUFFER, 0, m_ubo );
+    glBindBufferBase( GL_UNIFORM_BUFFER, UNIFORM_BINDING_POINT, m_ubo );
 
     /// if there is a model, draw it
     if( m_model )
         m_model->Draw( m_vao );
 
-    glBindBufferBase( GL_UNIFORM_BUFFER, 0, 0 );
+    /// release OpenGL resources used for rendering the model
+    glBindBufferBase( GL_UNIFORM_BUFFER, UNIFORM_BINDING_POINT, 0 );
+    glBindBufferBase( GL_UNIFORM_BUFFER, WEIGHTS_BINDING_POINT, 0 );
+    glBindBufferBase( GL_UNIFORM_BUFFER, JOINTS_BINDING_POINT, 0 );
     glUseProgram( 0 );
     glBindVertexArray( 0 );
 }
