@@ -110,7 +110,7 @@ crMD5View::crMD5View( void ) :
 	InitOpenGL();
 
 	m_renderer = new crRenderer();
-	m_renderer->Startup( 800, 600, nullptr );
+	m_renderer->Startup( 800, 600 );
 	m_state = 1;
 }
 
@@ -130,7 +130,11 @@ crMD5View::~crMD5View( void )
 
 void crMD5View::OpenMesh( const std::string &in_meshPath, const std::string &in_animPath )
 {
-
+	MD5::Model *model = new MD5::Model();
+	model->Read( in_meshPath.c_str() );
+	m_renderer->LoadModel( model );
+	model->Clear();
+	delete model;
 }
 
 void crMD5View::Run( void )

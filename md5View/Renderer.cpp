@@ -184,7 +184,7 @@ crRenderer::~crRenderer( void )
 {
 }
 
-bool crRenderer::Startup(const uint32_t in_width, const uint32_t in_height, const MD5::Model *in_model)
+bool crRenderer::Startup( const uint32_t in_width, const uint32_t in_height )
 {
     m_width = in_width;
     m_height = in_height;

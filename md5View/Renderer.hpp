@@ -64,8 +64,9 @@ public:
     crRenderer( void );
     ~crRenderer( void );
 
-    bool    Startup( const uint32_t in_width, const uint32_t in_height, const MD5::Model* in_model );
+    bool    Startup( const uint32_t in_width, const uint32_t in_height );
     void    Shutdown( void );
+    void    LoadModel( const MD5::Model* in_model );
     void    Render( void );
     void    UpdateView( const uint32_t in_width, const uint32_t in_height, glm::vec3 in_viewPos, glm::vec3 in_lookAt );
 
