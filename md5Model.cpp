@@ -81,33 +81,27 @@ void MD5::Model::Read( const std::string &in_path )
             m_meshes.resize( numMeshes );
         }
         // Retrieve the joints block and fill the joints array.
-        else if ( token == "joints" )
+        else if (token == "joints") 
         {
-            // read joints block
-            while ( std::getline( file, line ) )
+            while ( std::getline(file, line) && line.find("}") == std::string::npos ) 
             {
-                // end of joints block
-                if ( line == "}" )
-                    break;
-
-                std::istringstream jointIss( line );
+                std::istringstream jointIss(line);
                 std::string jointName;
-                int parentIndex;
-                float posX, posY, posZ;
-                float orientX, orientY, orientZ;
+                if ( !( jointIss >> std::quoted( jointName ) ) ) 
+                    continue; // jump '{' line
 
-                // Exemp: "bone1" 0 ( 10 0 0 ) ( 0.707 0 0.707 )
-                jointIss >> std::quoted( jointName ) >> parentIndex;
-                jointIss.ignore( 100, '(' ); // ignore until '('
-                jointIss >> posX >> posY >> posZ;
-                jointIss.ignore( 100, '(' ); // ignore until '('
-                jointIss >> orientX >> orientY >> orientZ;
-
+                uint32_t parentIndex;
+                jointIss >> parentIndex;
+                
                 Joint_t joint{};
                 joint.name = jointName;
                 joint.parentIndex = parentIndex;
-                joint.pos = glm::vec3( posX, posY, posZ );
-                joint.orient = glm::vec3( orientX, orientY, orientZ );
+
+                jointIss.ignore(100, '(');
+                jointIss >> joint.pos.x >> joint.pos.y >> joint.pos.z;
+                jointIss.ignore(100, '(');
+                jointIss >> joint.orient.x >> joint.orient.y >> joint.orient.z;
+                
                 joint.ComputeW();
                 m_joints[jointIndex++] = joint;
             }
@@ -119,7 +113,7 @@ void MD5::Model::Read( const std::string &in_path )
             // read mesh block
             while ( std::getline( file, line ) )
             {
-                if ( line == "}" )
+                if ( line.find("}") != std::string::npos )
                 {
                     meshIndex++;
                     break;
@@ -137,40 +131,46 @@ void MD5::Model::Read( const std::string &in_path )
                     mesh.shader = shaderName;
                 }
                 /// Retrieve vertex count and vertex data.
-                else if ( meshToken == "numverts" )
+                else if (meshToken == "numverts") 
                 {
                     uint32_t numVerts;
                     meshIss >> numVerts;
-                    mesh.vertices.reserve( numVerts );
-                    
-                    /// Read vertex data lines.
-                    for ( i = 0; i < numVerts; i++ )
+                    mesh.vertices.resize( numVerts );
+
+                    for (uint32_t i = 0; i < numVerts; ++i) 
                     {
-                        std::getline( file, line );
+                        if (!std::getline(file, line)) 
+                            break;
 
-                        // we don't found a valid vertex 
-						if ( line.find("vert") == std::string::npos )
-							break;
+                        // If the line is empty or is just a comment, skip it.
+                        if (line.empty() || line.find("vert") == std::string::npos) 
+                        {
+                            i--; // Skip empty lines or comments.
+                            if (file.eof()) 
+                                break;
 
-                        std::istringstream vertIss( line );
-                        std::string vertToken;
-                        vertIss >> vertToken; // should be "vert"
+                            continue;
+                        }
 
+                        std::istringstream vertIss(line);
+                        std::string junk;
                         uint32_t vertIndex;
-                        float uvX, uvY;
-                        int startWeight, weightCount;
-
-                        vertIss.ignore( 100, '(' ); // ignore until '('
-                        vertIss >> uvX >> uvY;
-                        vertIss.ignore( 100, '(' ); // ignore until '('
-                        vertIss >> startWeight >> weightCount;
-
                         Vertex_t vertex{};
-                        vertex.uv = glm::vec2( uvX, uvY );
-                        vertex.startWeight = startWeight;
-                        vertex.weightCount = weightCount;
 
-                        mesh.vertices.push_back( vertex );
+                        // vert [index] ( [u] [v] ) [startWeight] [countWeight]
+                        vertIss >> junk >> vertIndex; // consumes "vert" and the index
+
+                        vertIss.ignore(256, '(');
+                        vertIss >> vertex.uv.x >> vertex.uv.y;
+
+                        vertIss.ignore(256, ')'); 
+                        vertIss >> vertex.startWeight >> vertex.weightCount;
+
+#if 1
+                        mesh.vertices[i] = vertex;
+#else                   
+                        mesh.vertices[vertIndex] = vertex;
+#endif
                     }
                 }
                 else if( meshToken == "numtris" )
@@ -184,9 +184,15 @@ void MD5::Model::Read( const std::string &in_path )
                     {
                         std::getline( file, line );
 
-                        // we don't found a valid triangle
-                        if ( line.find("tri") == std::string::npos )
-                            break;
+                        // If the line is empty or is just a comment, skip it.
+                        if (line.empty() || line.find("tri") == std::string::npos) 
+                        {
+                            i--; // Skip empty lines or comments.
+                            if (file.eof()) 
+                                break;
+
+                            continue;
+                        }
 
                         std::istringstream triIss( line );
                         std::string triToken;
@@ -197,33 +203,47 @@ void MD5::Model::Read( const std::string &in_path )
                         mesh.triangles.push_back( triangle );
                     }
                 }
-                else if( meshToken == "numweights" )
+                else if ( meshToken == "numweights" ) 
                 {
                     uint32_t numWeights;
-                    meshIss >> numWeights;
-                    mesh.weights.reserve( numWeights );
+                    if (! ( meshIss >> numWeights ) ) 
+                        continue;
 
-                    /// Read weight data lines.
-                    for ( i = 0; i < numWeights; i++ )
+                    mesh.weights.resize( numWeights );
+
+                    for ( i = 0; i < numWeights; ++i) 
                     {
-                        std::getline( file, line );
-
-                        // we don't found a valid weight
-                        if ( line.find("weight") == std::string::npos )
+                        if (!std::getline(file, line))
                             break;
 
                         std::istringstream weightIss( line );
-                        std::string weightToken;
-                        weightIss >> weightToken; // should be "weight"
+                        std::string token;
+                        weightIss >> token;
+
+                        if (token != "weight") 
+                        {
+                            i--; // Skip empty lines or comments.
+                            if (file.eof()) 
+                                break;
+
+                            continue;
+                        }
 
                         uint32_t weightIndex;
-
-                        /// Get weight data: joint index, bias and position in joint space.
                         Weight_t weight{};
+
+                        // Reading: weight [index] [joint] [bias]
                         weightIss >> weightIndex >> weight.joint >> weight.bias;
-                        weightIss.ignore( 100, '(' ); // ignore until '('
+
+                        // Reading: ( [x] [y] [z] )
+                        weightIss.ignore(100, '(');
                         weightIss >> weight.pos.x >> weight.pos.y >> weight.pos.z;
-                        mesh.weights.push_back( weight );
+
+#if 0
+                        mesh.weights[weightIndex] = weight;
+#else
+                        mesh.weights[i] = weight;
+#endif
                     }
                 }
             }
