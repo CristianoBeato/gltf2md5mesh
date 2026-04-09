@@ -83,7 +83,7 @@ void MD5::Model::Read( const std::string &in_path )
         // Retrieve the joints block and fill the joints array.
         else if (token == "joints") 
         {
-            while ( std::getline(file, line) && line.find("}") == std::string::npos ) 
+            while ( std::getline( file, line ) && line.find("}") == std::string::npos ) 
             {
                 std::istringstream jointIss(line);
                 std::string jointName;
@@ -97,9 +97,9 @@ void MD5::Model::Read( const std::string &in_path )
                 joint.name = jointName;
                 joint.parentIndex = parentIndex;
 
-                jointIss.ignore(100, '(');
+                jointIss.ignore( 256, '(');
                 jointIss >> joint.pos.x >> joint.pos.y >> joint.pos.z;
-                jointIss.ignore(100, '(');
+                jointIss.ignore( 256, ')');
                 jointIss >> joint.orient.x >> joint.orient.y >> joint.orient.z;
                 
                 joint.ComputeW();
@@ -137,13 +137,13 @@ void MD5::Model::Read( const std::string &in_path )
                     meshIss >> numVerts;
                     mesh.vertices.resize( numVerts );
 
-                    for (uint32_t i = 0; i < numVerts; ++i) 
+                    for ( i = 0; i < numVerts; ++i ) 
                     {
-                        if (!std::getline(file, line)) 
+                        if ( !std::getline( file, line ) ) 
                             break;
 
                         // If the line is empty or is just a comment, skip it.
-                        if (line.empty() || line.find("vert") == std::string::npos) 
+                        if ( line.empty() || line.find( "vert" ) == std::string::npos ) 
                         {
                             i--; // Skip empty lines or comments.
                             if (file.eof()) 
@@ -160,24 +160,20 @@ void MD5::Model::Read( const std::string &in_path )
                         // vert [index] ( [u] [v] ) [startWeight] [countWeight]
                         vertIss >> junk >> vertIndex; // consumes "vert" and the index
 
-                        vertIss.ignore(256, '(');
+                        vertIss.ignore( 256, '(' );
                         vertIss >> vertex.uv.x >> vertex.uv.y;
 
-                        vertIss.ignore(256, ')'); 
+                        vertIss.ignore( 256, ')' ); 
                         vertIss >> vertex.startWeight >> vertex.weightCount;
 
-#if 1
-                        mesh.vertices[i] = vertex;
-#else                   
                         mesh.vertices[vertIndex] = vertex;
-#endif
                     }
                 }
                 else if( meshToken == "numtris" )
                 {
                     uint32_t numTris;
                     meshIss >> numTris;
-                    mesh.triangles.reserve( numTris );
+                    mesh.triangles.resize( numTris );
 
                     /// Read triangle data lines.
                     for ( i = 0; i < numTris; i++ )
@@ -185,7 +181,7 @@ void MD5::Model::Read( const std::string &in_path )
                         std::getline( file, line );
 
                         // If the line is empty or is just a comment, skip it.
-                        if (line.empty() || line.find("tri") == std::string::npos) 
+                        if ( line.empty() || line.find( "tri" ) == std::string::npos ) 
                         {
                             i--; // Skip empty lines or comments.
                             if (file.eof()) 
@@ -200,7 +196,7 @@ void MD5::Model::Read( const std::string &in_path )
                         Triangle_t triangle{};
                         uint32_t triIndex;
                         triIss >> triIndex >> triangle.v0 >> triangle.v1 >> triangle.v2;
-                        mesh.triangles.push_back( triangle );
+                        mesh.triangles[triIndex] = triangle;
                     }
                 }
                 else if ( meshToken == "numweights" ) 
@@ -236,14 +232,12 @@ void MD5::Model::Read( const std::string &in_path )
                         weightIss >> weightIndex >> weight.joint >> weight.bias;
 
                         // Reading: ( [x] [y] [z] )
-                        weightIss.ignore(100, '(');
+                        weightIss.ignore( 256, '(' );
                         weightIss >> weight.pos.x >> weight.pos.y >> weight.pos.z;
+                        weightIss.ignore( 256, ')' ); 
 
-#if 0
+                        // set weight at index 
                         mesh.weights[weightIndex] = weight;
-#else
-                        mesh.weights[i] = weight;
-#endif
                     }
                 }
             }

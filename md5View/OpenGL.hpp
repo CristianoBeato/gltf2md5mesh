@@ -109,6 +109,54 @@ private:
 	static void	DebugCallback( GLenum in_source, GLenum in_type, GLuint in_id, GLenum in_severity, GLsizei in_length, const GLchar* in_message, const void* in_userParam );
 };
 
+template< typename _t >
+class glBufferArray
+{
+public:
+	typedef _t* pointer;
 
+	/// @brief 
+	/// @param in_count total number of elements
+	void	Create( const uint32_t in_count )
+	{
+		m_size = sizeof(_t) * in_count;
+		glCreateBuffers( 1, &m_buffer );
+		
+	}
+
+	/// @brief Release buffer  
+	void	Destroy( void )
+	{
+		if( m_array != nullptr )
+			Unmap();
+
+		if( m_buffer != 0 )
+		{
+			glDeleteBuffers( 1, &m_buffer );
+			m_buffer = 0;
+		}
+	}
+
+	/// @brief Aquire the pointer of the buffer map
+	void	Map( void )
+	{
+		m_array = static_cast<pointer>( glMapNamedBufferRange( m_buffer, 0, m_size, GL_MAP_WRITE_BIT ) );
+	}
+
+	/// @brief Release the buffer map pointer 
+	void	Unmap( void )
+	{
+		glUnmapNamedBuffer( m_buffer );
+		m_array = nullptr;
+	}
+
+	operator	GLuint( void ) const { return m_buffer; }
+
+private:
+	GLbitfield	m_flags;
+	GLuint		m_buffer;
+	size_t		m_size;
+	pointer		m_array;
+};
 
 #endif //!__OPENGL_HPP__

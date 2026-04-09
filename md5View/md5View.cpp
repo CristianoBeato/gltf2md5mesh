@@ -150,7 +150,8 @@ void crMD5View::OpenMesh( const std::filesystem::path &in_meshPath, const std::f
 		throw std::runtime_error( std::string( "No valid input mesh file specified." ) + in_meshPath.string() );
 
 	MD5::Model *model = new MD5::Model();
-	model->Read( in_meshPath.c_str() );
+	/// Trivia: It's amazing how the somethings in standard library works on Linux and not on Windows and vice versa.
+	model->Read( in_meshPath.string() ); 
 	m_renderer->LoadModel( model );
 	model->Clear();
 	delete model;
