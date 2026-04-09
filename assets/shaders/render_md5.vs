@@ -1,4 +1,4 @@
-#version 450 core
+#version 460 core
 
 layout( location = 0 ) in vec2  aTexCoord;
 layout( location = 1 ) in uint  aWeightStart;
@@ -8,9 +8,8 @@ struct MD5Weight_t
 {
     uint    joint;
     float   bias;
-    float   pad1, pad2; // Padding manual para fechar 16 bytes antes do próximo campo
-    vec3    position;
-    float   pad3;       // Padding para a struct inteira ser múltiplo de 16
+    vec2    pad; // Padding manual para fechar 16 bytes antes do próximo campo
+    vec4    position;
 };
 
 /// Uniform buffer for transformation matrices
@@ -46,13 +45,13 @@ void main()
     /// calculate the MVP transformation
     mat4 mvp = uProjection * uView * uModel;
 
-#if 0
+#if 1
     for ( int i = 0; i < aWeightCount; i++ )
     {
         MD5Weight_t W = Weights[aWeightStart + i];
 
         /// transform the weight position to joint space
-        vec4 weightPos = Joints[W.joint] * vec4( W.position, 1.0 );
+        vec4 weightPos = Joints[W.joint] * W.position;
 
         /// accumulate the weighted position
         jointSpacePos += W.bias * weightPos;

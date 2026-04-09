@@ -1,4 +1,4 @@
-#version 450 core
+#version 460 core
 
 /// Output fragment color
 layout ( location = 0 ) out vec4 out_fragment;
