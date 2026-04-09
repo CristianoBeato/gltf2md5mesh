@@ -36,8 +36,7 @@ struct render_weight_t
     uint32_t    joint;
     float       bias;
     glm::vec2   dummy; // Padding para alinhar a posição
-    glm::vec3   pos;
-    float       dummy2;   // Padding final
+    glm::vec4   pos;
 };
 
 static_assert( sizeof(render_weight_t) % 16 == 0, "Struct deve ser múltiplo de 16 bytes!" );
@@ -135,7 +134,7 @@ void crRendererModel::Create( const MD5::Model *in_model )
             uint32_t index = renderMesh.firstWeight + j;
             renderWeight[index].bias = modelMesh.weights[i].bias;
             renderWeight[index].joint = modelMesh.weights[i].joint;
-            renderWeight[index].pos = modelMesh.weights[i].pos;
+            renderWeight[index].pos = glm::vec4( modelMesh.weights[i].pos, 1.0 );
         }
         
     }
