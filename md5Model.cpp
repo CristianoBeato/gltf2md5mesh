@@ -348,3 +348,89 @@ void MD5::Model::Clear(void)
     m_meshes.clear();
     m_joints.clear();
 }
+
+bool MD5::Model::ValidateModel( std::stringstream &out_error ) const
+{
+    bool success = true;
+    uint32_t base = 0;
+    uint32_t i = 0;
+    uint32_t jointCount = m_joints.size();
+    uint32_t meshCount = m_meshes.size();
+
+    for ( i = 0; i < jointCount; i++)
+    {
+        auto joint = m_joints[i];
+        if ( joint.parentIndex < 0 )
+        {
+            if( base == UINT32_MAX )
+            {
+                base = i;
+            }
+            else
+            {
+                out_error << "Joint " << i << " " << joint.name  << " has no parent, but joint " << base << " already is base\n";
+                // actually is not a error have two or more root joint
+            }
+            base = i;
+        }
+        
+    }
+
+    for( i = 0; i < meshCount; i++ )
+    {
+        auto mesh = m_meshes[i];
+        if( !mesh.ValidateMesh( jointCount, out_error ) )
+            success = false;
+    }    
+
+    return success;
+}
+
+bool MD5::Mesh_t::ValidateMesh( const uint32_t in_numJoints, std::stringstream &out_error) const
+{
+    bool success = true;
+    uint32_t i = 0, j = 0;
+    uint32_t triangleCount = triangles.size();
+    uint32_t vertexCount = vertices.size();
+    uint32_t weightCount = weights.size();
+
+    /// Todo check if triangles don't are out of vertex bounds 
+    for ( i = 0; i < triangleCount; i++)
+    {
+        auto triangle = triangles[i];
+        for ( j = 0; j < 3; j++)
+        {
+            uint32_t v = triangle[j];
+            
+            /// Check if 
+            if( v >= triangleCount )
+            {
+                out_error << "triangle " << i << " vertice " << j << " out of vertex array bounds\n";
+                success = false;
+            }
+        }
+    }
+
+    for ( i = 0; i < vertexCount; i++)
+    {
+        auto vertex = vertices[i];
+        if( ( vertex.startWeight + vertex.weightCount ) >= weightCount )
+        {
+            out_error << "vertex " << i << " weigth start at" << vertex.startWeight;
+            out_error << " and end at " << vertex.startWeight + vertex.weightCount << " is out of weights bound " << weightCount << "\n";
+            success = false;
+        }
+    }
+
+    for ( i = 0; i < weightCount; i++)
+    {
+        auto weight = weights[i];
+        if ( weight.joint >= in_numJoints )
+        {
+            out_error << "Weight " << i << " joint is " << weight.joint << " maximum is " << weightCount << "\n";
+            success = false;
+        }
+    }
+
+    return success;
+}

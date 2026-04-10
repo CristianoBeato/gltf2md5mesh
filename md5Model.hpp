@@ -61,6 +61,13 @@ namespace MD5
         /// @brief vertex indices that define the triangle, these indices refer to the vertex array of the mesh.
         /// We use unsigned int (uint32_t) since openGL glDrawElementsBaseVertex don't support GL_INT as index type.
         uint32_t v0, v1, v2;
+
+        ///
+        uint32_t    operator[]( int i ) const 
+        {
+            assert( i < 3 );
+            return ( &v0 )[i];
+        }
     };
 
     struct Mesh_t 
@@ -71,6 +78,11 @@ namespace MD5
         std::vector<Vertex_t>   vertices;   /// vertex array, each vertex has uv and weight info (startWeight and weightCount)
         std::vector<Triangle_t> triangles;  /// triangle array, each triangle has 3 vertex indices
         std::vector<Weight_t>   weights;    /// weight array, each weight has a joint index, bias and position in joint space
+
+        /// @brief 
+        /// @param out_error error string about 
+        /// @return false if a mismatch found
+        bool ValidateMesh( const uint32_t in_numJoints, std::stringstream  &out_error ) const;
     };
 
     class Model
@@ -95,6 +107,8 @@ namespace MD5
         void        ReserveJoints( const uint32_t in_count ) { m_joints.resize( in_count ); }
         void        ReserveMeshes( const uint32_t in_count ) { m_meshes.resize( in_count ); }
         void        AddMesh( const Mesh_t &in_mesh ) { m_meshes.push_back( in_mesh ); }
+
+        bool        ValidateModel( std::stringstream  &out_error ) const;        
 
         uint32_t                Version( void ) const { return m_version; }
         std::string             CommandLine( void ) const { return m_commandline; } 
