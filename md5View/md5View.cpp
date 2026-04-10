@@ -141,6 +141,7 @@ void crMD5View::OpenMesh( std::stringstream &in_cmdline )
 
 void crMD5View::OpenMesh( const std::filesystem::path &in_meshPath, const std::filesystem::path &in_animPath )
 {
+	std::stringstream validation;
 	/// 
 	if ( in_meshPath.empty() )
 	 	throw std::runtime_error( "No input mesh specified. Use --mesh <path> to specify the input .md5mesh file." );
@@ -152,6 +153,16 @@ void crMD5View::OpenMesh( const std::filesystem::path &in_meshPath, const std::f
 	MD5::Model *model = new MD5::Model();
 	/// Trivia: It's amazing how the somethings in standard library works on Linux and not on Windows and vice versa.
 	model->Read( in_meshPath.string() ); 
+	if( !model->ValidateModel( validation ) )
+	{
+		model->Clear();
+		delete model;
+		model = nullptr;
+
+		std::cout << validation.rdbuf();
+		return;
+	}
+
 	m_renderer->LoadModel( model );
 	model->Clear();
 	delete model;

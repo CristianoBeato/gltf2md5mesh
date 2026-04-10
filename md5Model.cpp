@@ -379,6 +379,7 @@ bool MD5::Model::ValidateModel( std::stringstream &out_error ) const
     for( i = 0; i < meshCount; i++ )
     {
         auto mesh = m_meshes[i];
+        out_error << "Mesh " << i << "\n";
         if( !mesh.ValidateMesh( jointCount, out_error ) )
             success = false;
     }    
@@ -386,7 +387,7 @@ bool MD5::Model::ValidateModel( std::stringstream &out_error ) const
     return success;
 }
 
-bool MD5::Mesh_t::ValidateMesh( const uint32_t in_numJoints, std::stringstream &out_error) const
+bool MD5::Mesh_t::ValidateMesh( const uint32_t in_numJoints, std::stringstream &out_error ) const
 {
     bool success = true;
     uint32_t i = 0, j = 0;
@@ -403,9 +404,9 @@ bool MD5::Mesh_t::ValidateMesh( const uint32_t in_numJoints, std::stringstream &
             uint32_t v = triangle[j];
             
             /// Check if 
-            if( v >= triangleCount )
+            if( v >= vertexCount )
             {
-                out_error << "triangle " << i << " vertice " << j << " out of vertex array bounds\n";
+                out_error << "\ttriangle nº " << i << " vertice " << j << " out of vertex array bounds " << vertexCount << "\n";
                 success = false;
             }
         }
@@ -416,8 +417,8 @@ bool MD5::Mesh_t::ValidateMesh( const uint32_t in_numJoints, std::stringstream &
         auto vertex = vertices[i];
         if( ( vertex.startWeight + vertex.weightCount ) >= weightCount )
         {
-            out_error << "vertex " << i << " weigth start at" << vertex.startWeight;
-            out_error << " and end at " << vertex.startWeight + vertex.weightCount << " is out of weights bound " << weightCount << "\n";
+            out_error << "\tvertex nº " << i << " weigth start at (" << vertex.startWeight;
+            out_error << ") and end at (" << vertex.startWeight + vertex.weightCount << ") is out of weights bound " << weightCount << "\n";
             success = false;
         }
     }
@@ -427,7 +428,7 @@ bool MD5::Mesh_t::ValidateMesh( const uint32_t in_numJoints, std::stringstream &
         auto weight = weights[i];
         if ( weight.joint >= in_numJoints )
         {
-            out_error << "Weight " << i << " joint is " << weight.joint << " maximum is " << weightCount << "\n";
+            out_error << "\tWeight nº" << i << " joint is " << weight.joint << " maximum is " << weightCount << "\n";
             success = false;
         }
     }
