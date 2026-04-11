@@ -251,24 +251,25 @@ void MD5::Model::Write(const std::string &in_path) const
 	uint32_t j = 0;
 	std::ofstream file( in_path );
     if (!file.is_open()) 
-        std::runtime_error( "Erro: failed to write model" ); 
-
+    std::runtime_error( "Erro: failed to write model" ); 
+    
     file << std::fixed;             // never in exponencial
     file << std::setprecision(6);   // 6 decimal digits (like Doom 3)
-
+    uint32_t jointCount = static_cast<uint32_t>( m_joints.size() );
+    uint32_t meshCount = static_cast<uint32_t>( m_meshes.size() );
+    
 	// write file version
 	file << "MD5Version " << m_version << "\n";
-
+    
 	// write commandline
 	file << "commandline " << "\"" << m_commandline << "\"\n\n";
-
+    
 	// write the joints and meshes count
-	file << "numJoints " << m_joints.size() << "\n";
-	file << "numMeshes " << m_meshes.size() << "\n\n";
+	file << "numJoints " << jointCount << "\n";
+	file << "numMeshes " << meshCount << "\n\n";
 
 	file << "joints\n{\n";
-
-	for ( i = 0; i < m_joints.size(); i++)
+	for ( i = 0; i < jointCount; i++)
 	{
 		MD5::Joint_t joint = m_joints[i];
 		
@@ -281,13 +282,16 @@ void MD5::Model::Write(const std::string &in_path) const
 		// write joint orientation
 		file << " ( " << joint.orient.x << " " << joint.orient.y << " " << joint.orient.z << " )\n";
 	}
-
 	file << "}\n";
 	file << std::endl;
 
-	for ( i = 0; i < m_meshes.size(); i++)
+	for ( i = 0; i < meshCount; i++)
 	{
 		MD5::Mesh_t mesh = m_meshes[i];
+        uint32_t vertexCount = static_cast<uint32_t>( mesh.vertices.size() );
+        uint32_t triangleCount = static_cast<uint32_t>( mesh.triangles.size() );
+        uint32_t weightCount = static_cast<uint32_t>( mesh.weights.size() );
+        
         /// debug purpose, write the mesh name as a comment in the md5mesh file.
         file << "// Mesh " << i << ": " << mesh.name << std::endl;
 
@@ -297,26 +301,26 @@ void MD5::Model::Write(const std::string &in_path) const
 		file << "\tshader \"" << mesh.shader << "\"\n\n";
 
         /// Write out the vertices array.
-		file << "\tnumverts " << mesh.vertices.size() << "\n";
-		for ( j = 0; j < mesh.vertices.size(); j++ )
+		file << "\tnumverts " << vertexCount << "\n";
+		for ( j = 0; j < vertexCount; j++ )
 		{
 			auto vert = mesh.vertices[j];
 			file << "\tvert " << j << " ( " << vert.uv.x << " " << vert.uv.y << " ) " << vert.startWeight << " " << vert.weightCount << "\n";
 		}
-		file << std::endl;
+		file << "\n";
 
         /// Write out the triangles array.
-		file << "\tnumtris " << mesh.triangles.size() << "\n";
-		for ( j = 0; j < mesh.triangles.size(); j++)
+		file << "\tnumtris " << triangleCount << "\n";
+		for ( j = 0; j < triangleCount; j++)
 		{
 			auto tri = mesh.triangles[j];
 			file << "\ttri " << j << " " << tri.v0 << " " << tri.v1 << " " << tri.v2 << "\n";
 		}
-		file << std::endl;
+		file << "\n";
 
         /// Write out the weights array.
-		file << "\tnumweights " << mesh.weights.size();
-		for ( j = 0; j < mesh.weights.size(); j++ )
+		file << "\tnumweights " << weightCount;
+		for ( j = 0; j < weightCount; j++ )
 		{
 			auto weight = mesh.weights[j];
 			
@@ -326,7 +330,7 @@ void MD5::Model::Write(const std::string &in_path) const
 			// write joint related position
 			file << "( " << weight.pos.x << " " << weight.pos.y << " " << weight.pos.z << " )\n"; 
 		}
-		file << std::endl;
+		file << "\n";
 
 		// mesh end 
 		file << "}"<< std::endl;

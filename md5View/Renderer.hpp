@@ -30,6 +30,19 @@
 #ifndef __RENDERER_HPP__
 #define __RENDERER_HPP__
 
+#include "OpenGL.hpp"
+#include "md5Model.hpp"
+
+struct render_weight_t 
+{
+    uint32_t    joint;
+    float       bias;
+    glm::vec2   dummy; // Padding para alinhar a posição
+    glm::vec4   pos;
+};
+
+static_assert( sizeof(render_weight_t) % 16 == 0, "Struct deve ser múltiplo de 16 bytes!" );
+
 inline constexpr uint32_t UNIFORM_BINDING_POINT = 0;
 inline constexpr uint32_t WEIGHTS_BINDING_POINT = 1;
 inline constexpr uint32_t JOINTS_BINDING_POINT = 2;
@@ -55,11 +68,11 @@ private:
     };
 
     uint32_t            m_numTriangles;
-    GLuint              m_ebo;    // Triangle buffer
-    GLuint              m_vbo;    // Vertex buffer 
-    GLuint              m_wbo;    // Weights buffer 
-    GLuint              m_jbo;    // Joints buffer
-    std::vector<mesh_t> m_meshes;
+    glBufferArray<MD5::Triangle_t>  m_ebo;    // Triangle buffer
+    glBufferArray<MD5::Vertex_t>    m_vbo;    // Vertex buffer 
+    glBufferArray<render_weight_t>  m_wbo;    // Weights buffer 
+    glBufferArray<glm::mat4>        m_jbo;    // Joints buffer
+    std::vector<mesh_t>             m_meshes;
 };
 
 class crRenderer

@@ -15,7 +15,7 @@ if( MINGW OR MSVC ) ## Atually, simdjson is not working with my current MingW64 
                     ## but on my Clang on linux ( Debian13 ) its not required to include the package externaly from
                     ## fastgltf, so just bypass it for now, remove on future fix
     find_package( simdjson REQUIRED )
-endif( MINGW )
+endif( )
 
 find_package( fastgltf REQUIRED )
 find_package( glm REQUIRED )
@@ -47,6 +47,8 @@ target_precompile_headers( gltf2md5mesh
         <vector>
         <iomanip>
         <string>
+        <filesystem>
+        <fastgltf/core.hpp>
 	PRIVATE
         "$<$<COMPILE_LANGUAGE:CXX>:${CMAKE_CURRENT_SOURCE_DIR}/precompiled.hpp>"
         "$<$<COMPILE_LANGUAGE:CXX>:${CMAKE_CURRENT_SOURCE_DIR}/md5Model.hpp>"

@@ -113,15 +113,17 @@ template< typename _t >
 class glBufferArray
 {
 public:
+	typedef _t& reference;
 	typedef _t* pointer;
 
 	/// @brief 
 	/// @param in_count total number of elements
-	void	Create( const uint32_t in_count )
+	void	Create( const uint32_t in_count, const GLbitfield in_flags )
 	{
+		m_flags = in_flags ;
 		m_size = sizeof(_t) * in_count;
 		glCreateBuffers( 1, &m_buffer );
-		
+		glNamedBufferStorage( m_buffer, m_size, nullptr, m_flags );
 	}
 
 	/// @brief Release buffer  
@@ -150,6 +152,14 @@ public:
 		m_array = nullptr;
 	}
 
+	pointer	Pointer( void ) const { return m_array; }
+
+	reference	operator[]( int in_index )
+	{
+		return m_array[in_index];
+	}
+
+	operator	bool( void ) const { return m_buffer != 0; }
 	operator	GLuint( void ) const { return m_buffer; }
 
 private:

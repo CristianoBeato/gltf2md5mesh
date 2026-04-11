@@ -30,16 +30,7 @@
 
 #include <glm/gtc/matrix_transform.hpp>
 #include <glm/gtc/type_ptr.hpp>
-
-struct render_weight_t 
-{
-    uint32_t    joint;
-    float       bias;
-    glm::vec2   dummy; // Padding para alinhar a posição
-    glm::vec4   pos;
-};
-
-static_assert( sizeof(render_weight_t) % 16 == 0, "Struct deve ser múltiplo de 16 bytes!" );
+#include "OpenGL.hpp"
 
 struct uniforms_t
 {
@@ -64,12 +55,6 @@ void crRendererModel::Create( const MD5::Model *in_model )
     uint32_t numVertices = 0;
     uint32_t numWeights = 0;
     uint32_t numJoints = 0;
-
-    /// Create buffer handlers
-    glCreateBuffers( 1, &m_ebo );
-    glCreateBuffers( 1, &m_vbo );
-    glCreateBuffers( 1, &m_wbo );
-    glCreateBuffers( 1, &m_jbo );
 
     /// Get total joint count 
     numJoints = const_cast<MD5::Model*>(in_model)->Joints().size();
@@ -98,10 +83,17 @@ void crRendererModel::Create( const MD5::Model *in_model )
     }
 
     /// Allocate memory for the model geometry data.
-    glNamedBufferStorage( m_ebo, numTriangles * sizeof( MD5::Triangle_t ), nullptr, GL_MAP_WRITE_BIT );
-    glNamedBufferStorage( m_vbo, numVertices * sizeof( MD5::Vertex_t ), nullptr, GL_MAP_WRITE_BIT );
-    glNamedBufferStorage( m_wbo, numWeights * sizeof( render_weight_t ), nullptr, GL_MAP_WRITE_BIT );
-    glNamedBufferStorage( m_jbo, numJoints * sizeof( glm::mat4 ), nullptr, GL_MAP_WRITE_BIT );
+    m_ebo.Create( numTriangles, GL_MAP_WRITE_BIT );
+    m_ebo.Map();
+    
+    m_vbo.Create( numVertices, GL_MAP_WRITE_BIT );
+    m_vbo.Map();
+    
+    m_wbo.Create( numWeights, GL_MAP_WRITE_BIT );
+    m_wbo.Map();
+    
+    m_jbo.Create( numJoints, GL_MAP_WRITE_BIT );
+    m_jbo.Map();
     
     /// Upload geometry data to the GPU.
     for ( i = 0; i < numMeshes; i++)
@@ -109,77 +101,54 @@ void crRendererModel::Create( const MD5::Model *in_model )
         auto modelMesh = meshes[i];
         auto renderMesh = m_meshes[i];
 
+        ///
         /// Upload triangles indices.
-#if 0
-        glNamedBufferSubData( m_ebo, renderMesh.firstTriangle * sizeof( MD5::Triangle_t ), renderMesh.numTriangles * sizeof( MD5::Triangle_t ), modelMesh.triangles.data() );
-#else
-        auto Triangles = static_cast<MD5::Triangle_t*>( glMapNamedBufferRange( m_ebo, renderMesh.firstTriangle * sizeof( MD5::Triangle_t ), renderMesh.numTriangles * sizeof( MD5::Triangle_t ), GL_MAP_WRITE_BIT ) );
-        std::memcpy( Triangles, modelMesh.triangles.data(), sizeof(MD5::Triangle_t) * renderMesh.numTriangles );
-        glUnmapNamedBuffer( m_vbo );
-#endif
+        std::memcpy( m_ebo.Pointer() + renderMesh.firstTriangle, modelMesh.triangles.data(), sizeof( MD5::Triangle_t ) * renderMesh.numTriangles );
 
+        ///
         /// Upload vertices.
-#if 0
-        glNamedBufferSubData( m_vbo, renderMesh.firstVertex * sizeof( MD5::Vertex_t ), renderMesh.numVertices * sizeof( MD5::Vertex_t ), modelMesh.vertices.data() );
-#else
-        auto Vertexes = static_cast<MD5::Vertex_t*>( glMapNamedBufferRange( m_vbo, renderMesh.firstVertex * sizeof( MD5::Vertex_t ), renderMesh.numVertices * sizeof( MD5::Vertex_t ), GL_MAP_WRITE_BIT ) );
-        std::memcpy( Vertexes, modelMesh.vertices.data(), renderMesh.numVertices * sizeof( MD5::Vertex_t ) );
-        glUnmapNamedBuffer( m_ebo );
-#endif
+        std::memcpy( m_vbo.Pointer() + renderMesh.firstVertex, modelMesh.vertices.data(), sizeof( MD5::Vertex_t ) * renderMesh.numVertices );
         
-        ///
-        ///
         /// Upload wights influence to shader storage
-        // glNamedBufferSubData( m_wbo, renderMesh.firstWeight * sizeof( MD5::Weight_t ), renderMesh.numWeights * sizeof( MD5::Weight_t ), modelMesh.weights.data() );
-        auto Weight = static_cast<render_weight_t*>( glMapNamedBufferRange( m_wbo, renderMesh.firstWeight * sizeof(render_weight_t), renderMesh.numWeights * sizeof(render_weight_t), GL_MAP_WRITE_BIT ) );
+        auto Weight = m_wbo.Pointer() + renderMesh.firstWeight;
         for ( uint32_t j = 0; j < renderMesh.numWeights; j++)
         {
             Weight[j].bias = modelMesh.weights[j].bias;
             Weight[j].joint = modelMesh.weights[j].joint;
             Weight[j].pos = glm::vec4( modelMesh.weights[j].pos, 1.0 );
         }
-        glUnmapNamedBuffer( m_wbo );
     }
+
+    m_wbo.Unmap();
+    m_vbo.Unmap();
+    m_ebo.Unmap();
     
     ///
     ///
     /// Upload joint matrix to shader storage
     auto joints = const_cast<MD5::Model*>(in_model)->Joints();
-    auto rjoints = static_cast<glm::mat4*>( glMapNamedBufferRange( m_jbo, 0, numJoints * sizeof( glm::mat4 ), GL_MAP_WRITE_BIT ) );
     for ( i = 0; i < numJoints; i++)
     {
         /// upload joint matrix to the GPU
         //glNamedBufferSubData( m_jbo, i * sizeof( glm::mat4 ), sizeof( glm::mat4 ), glm::value_ptr( matJoint ) );
-        rjoints[i] = joints[i].ComputeInverseBindPose();;
+        m_jbo[i] = joints[i].ComputeInverseBindPose();;
     }
-    glUnmapNamedBuffer( m_jbo );
+    m_jbo.Unmap();
 }
 
 void crRendererModel::Destroy(void)
 {
     if ( m_jbo )
-    {
-        glDeleteBuffers( 1, &m_jbo );
-        m_jbo = 0;
-    }
-    
+        m_jbo.Destroy();
+       
     if ( m_wbo )
-    {
-        glDeleteBuffers( 1, &m_wbo );
-        m_wbo = 0;
-    }
+        m_wbo.Destroy();
 
     if ( m_vbo )
-    {
-        glDeleteBuffers( 1, &m_vbo );
-        m_vbo = 0;
-    }
+        m_vbo.Destroy();
 
     if ( m_ebo )
-    {
-        glDeleteBuffers( 1, &m_ebo );
-        m_ebo = 0;
-    }
+        m_ebo.Destroy();
 }
 
 void crRendererModel::Draw( const GLuint in_vao )
