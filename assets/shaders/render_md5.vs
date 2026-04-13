@@ -51,7 +51,7 @@ void main()
         MD5Weight_t W = Weights[aWeightStart + i];
 
         /// transform the weight position to joint space
-        vec4 weightPos = Joints[W.joint] * W.position;
+        vec4 weightPos = vec4( 1 ); //Joints[W.joint] * W.position;
 
         /// accumulate the weighted position
         jointSpacePos += W.bias * weightPos;

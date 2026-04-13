@@ -135,105 +135,150 @@ gltfToMd5::~gltfToMd5( void )
 
 /*
 ======================================
+gltfToMd5::LoadGLTF
+======================================
+*/
+bool gltfToMd5::LoadGLTF( const std::filesystem::path &in_path )
+{
+    ///
+    fastgltf::Parser parser( supportedExtensions );
+
+    ///
+    if( !std::filesystem::exists( in_path ) )
+        throw std::runtime_error( "Source File Don't exits" );
+
+    ///
+    std::cout << "trying to open " << in_path.c_str() << std::endl;
+    gltf::Expected<gltf::MappedGltfFile> file = gltf::MappedGltfFile::FromPath( in_path );
+	if (!bool(file)) 
+        throw std::runtime_error( gltf::getErrorMessage( file.error() ).data() );
+
+    ///
+    auto assets = parser.loadGltf( file.get(), in_path.parent_path(), gltfOptions );
+    if ( assets.error() != gltf::Error::None )
+        throw std::runtime_error( gltf::getErrorMessage( assets.error()).data() );
+    
+    /// build skining skeleton
+    const auto& skin = assets.get().skins[0];
+    if( !LoadJoints( assets.get(), skin ) )
+        return false;
+
+    if( !LoadMeshes( assets.get(), skin ) )
+        return false;
+
+}
+
+/*
+======================================
 gltfToMd5::LoadJoints
 ======================================
 */
-void gltfToMd5::LoadJoints( const gltf::Asset &in_assets, const gltf::Skin& in_skin, MD5::Model& out_model )
+bool gltfToMd5::LoadJoints( const gltf::Asset &in_assets, const gltf::Skin& in_skin )
 {
-    out_model.ReserveJoints( in_skin.joints.size() );
+    uint32_t i = 0;
+    uint32_t jointCount = 0;
     auto nodes = in_assets.nodes;
 
+    jointCount = static_cast<uint32_t>( in_skin.joints.size() );
+    m_model.ReserveJoints( jointCount );
+
     // Descobre parent de cada node
-    std::vector<int> parent( nodes.size(), -1);
-    for (size_t i = 0; i < nodes.size(); i++) 
+    std::vector<int> parent( nodes.size(), -1 );
+    for ( i = 0; i < nodes.size(); i++) 
     {
         for (auto c : nodes[i].children)
             parent[c] = (int)i;
     }
 
-    for (size_t i = 0; i < in_skin.joints.size(); i++) 
+    for ( i = 0; i < jointCount; i++) 
     {
         uint32_t nodeIndex = in_skin.joints[i];
         const gltf::Node& node = nodes[nodeIndex];
 
-        MD5::Joint_t &j = out_model.Joints()[i];
+        MD5::Joint_t joint;
 
+        /// if no joint name, "create" one
         if ( node.name.empty() )
-            j.name =  "joint_" + std::to_string(i);
+            joint.name =  "joint_" + std::to_string(i);
         else
-            j.name = node.name.c_str();
+            joint.name = node.name.c_str();
 
-        j.parentIndex = parent[nodeIndex];
+        joint.parentIndex = parent[nodeIndex];
         
         auto transform = std::get<gltf::TRS>( node.transform );
 
-        /// get transform
-        glm::vec3 t = glm::vec3( transform.translation.x(), transform.translation.y(), transform.translation.z() );
+        /// get translation
+        joint.pos = glm::vec3( transform.translation.x(), transform.translation.y(), transform.translation.z() );
  
         /// get rotation
-        glm::quat r = glm::quat( transform.rotation.w(), transform.rotation.x(), transform.rotation.y(), transform.rotation.z());
+        joint.orient = glm::quat( transform.rotation.w(), transform.rotation.x(), transform.rotation.y(), transform.rotation.z());
         
         /// get scaling ( not used in MD5Mesh )
-        glm::vec3 s = glm::vec3( transform.scale.x(), transform.scale.y(), transform.scale.z() );
+        // glm::vec3 s = glm::vec3( transform.scale.x(), transform.scale.y(), transform.scale.z() );
 
-        // MD5 usa orientação como vec3, faltando ‘w’
-        j.orient = r;
-        j.pos = t;
+        m_model.AddJoint( joint );
     }
-}
-
-/*
-======================================
-gltfToMd5::LoadPositions
-======================================
-*/
-bool gltfToMd5::LoadPositions( const gltf::Asset &in_assets, const gltf::Primitive& in_prim, std::vector<glm::vec4> &out_positions )
-{
-    const gltf::Attribute* posAcc = in_prim.findAttribute("POSITION");
-	assert( in_prim.indicesAccessor.has_value() ); // We specify GenerateMeshIndices, so we should always have indices
-    
-    // 
-    if ( posAcc == in_prim.attributes.end() )
-       return false;
-
-    // Position
-    const gltf::Accessor& positionAccessor = in_assets.accessors[posAcc->accessorIndex];
-    if (!positionAccessor.bufferViewIndex.has_value())
-        return false;    
-    
-    // resize vertex array
-    out_positions.resize( positionAccessor.count );
-
-    // position data acess lambda
-    auto getpos = [&]( fastgltf::math::fvec3 pos, std::size_t idx ) 
-    {
-		out_positions[idx] = glm::vec4( pos.x(), pos.y(), pos.z(), 1.0f );
-    };
-
-    fastgltf::iterateAccessorWithIndex<fastgltf::math::fvec3>( in_assets, positionAccessor, getpos );
 
     return true;
 }
 
 /*
 ======================================
-gltfToMd5::LoadTextureCoordinates
+gltfToMd5::LoadTriangles
 ======================================
 */
-bool gltfToMd5::LoadTextureCoordinates( const gltf::Asset &in_assets, const gltf::Primitive& in_prim, std::vector<glm::vec2> &out_coordinates )
+bool gltfToMd5::LoadTriangles(const gltf::Asset &in_assets)
 {
+    // We specify GenerateMeshIndices, so we should always have indices
+	assert( in_prim.indicesAccessor.has_value() ); 
+    
+    return false;
+}
+
+/*
+======================================
+gltfToMd5::LoadVertexes
+======================================
+*/
+bool gltfToMd5::LoadVertexes(const gltf::Asset &in_assets, const gltf::Primitive &in_prim )
+{
+    const gltf::Attribute* posAcc = in_prim.findAttribute("POSITION");
+    
     // we only try to load the first uv mesh
     const gltf::Attribute* texcoordAcc = in_prim.findAttribute("TEXCOORD_0");
+    
+    if( posAcc == in_prim.attributes.end() || texcoordAcc == in_prim.attributes.end() )
+       return false;
 
-    if( texcoordAcc == in_prim.attributes.end())
-        return false;
+    // Position
+    const gltf::Accessor& positionAccessor = in_assets.accessors[posAcc->accessorIndex];
+    if (!positionAccessor.bufferViewIndex.has_value())
+        return false;    
 
     // Tex coord
 	const gltf::Accessor& texCoordAccessor = in_assets.accessors[texcoordAcc->accessorIndex];
     if (!texCoordAccessor.bufferViewIndex.has_value())
         return false;
-        
-    out_coordinates.resize( texCoordAccessor.count );
+
+    // TODO:
+    if( positionAccessor.count != texCoordAccessor.count )
+    {
+        // TODO: check if he have the same number of the two
+    }
+
+    // resize vertex array
+    m_positions.resize( positionAccessor.count );
+    m_coordinates.resize( texCoordAccessor.count );
+
+    // position data acess lambda
+    auto getpos = [&]( fastgltf::math::fvec3 pos, std::size_t idx ) 
+    {
+		m_positions[m_currentMesh][idx] = glm::vec4( pos.x(), pos.y(), pos.z(), 1.0f );
+    };
+
+    fastgltf::iterateAccessorWithIndex<fastgltf::math::fvec3>( in_assets, positionAccessor, getpos );
+ 
+    m_coordinates.resize( texCoordAccessor.count );
 
     // coordinate data acess lambda
     auto getuv = [&]( fastgltf::math::fvec2 uv, std::size_t idx ) 
@@ -355,186 +400,154 @@ bool gltfToMd5::LoadInverseMatrixes( const gltf::Asset &in_assets, const gltf::S
 gltfToMd5::LoadMesh
 ======================================
 */
-void gltfToMd5::LoadMesh( const gltf::Asset &in_assets, const gltf::Mesh& in_gltfMesh, const gltf::Skin& in_skin, MD5::Model& out_model )
+void gltfToMd5::LoadMeshes( const gltf::Asset &in_assets, const gltf::Mesh& in_gltfMesh, const gltf::Skin& in_skin, MD5::Model& out_model )
 {
-    for ( auto& prim : in_gltfMesh.primitives )
-    {
-        size_t vertexCount = 0;
-        uint32_t jointPerVertex = 0;
-        std::vector<glm::vec4>      positions = std::vector<glm::vec4>();   // vertex positions ( vec4 for easy joit pos calculation )
-        std::vector<glm::vec2>      coordinates = std::vector<glm::vec2>(); // vertex uv 
-        std::vector<float>          weights = std::vector<float>();     // joints influences
-        std::vector<uint16_t>       joints = std::vector<uint16_t>();   // joint ids
-        std::vector<glm::mat4>      inverseBindMatrix = std::vector<glm::mat4>(); // inverse pose matrix
-
-        MD5::Mesh_t subset{};
-
-        if ( prim.materialIndex.has_value() )
-        {
-            const auto &mtr = in_assets.materials[*prim.materialIndex];
-            subset.shader = mtr.name.c_str();
-        }
-        else
-        {
-            subset.shader = "defaut";
-        }
-
-        // get vertex positions
-        if( !LoadPositions( in_assets, prim, positions ) )
-             throw std::runtime_error( "A mesh primitive is required to hold the POSITION attribute." );
-
-        // get texture coordinates
-        if( !LoadTextureCoordinates( in_assets, prim, coordinates ) )
-            throw std::runtime_error( "A mesh primitive is required to hold atleast TEXCOORD_0 attribute." );
-
-        // get vertex weights influences
-        if( !LoadWeights( in_assets, prim, weights, joints, jointPerVertex ) )
-            throw std::runtime_error( "A mesh primitive is required to hold the WEIGHTS_0 attribute." );
-
-        // inverse pose Bind Matrix
-        if( !LoadInverseMatrixes( in_assets, in_skin, inverseBindMatrix ) )
-            throw std::runtime_error( "A mesh primitive is required to hold the WEIGHTS_0 attribute." );
-
-        if( coordinates.size() == 0)
-        {
-            coordinates.resize( positions.size() );
-            // made all blanc
-            for (size_t i = 0; i < coordinates.size(); i++)
-            {
-                coordinates[i] = glm::vec2( 0.0f, 0.0f );
-            }
-        }
-        else if( coordinates.size() != positions.size() )
-            throw std::runtime_error( "texture coordinate count != from vertex position count" );
-
-#if 0 // TODO: fix
-        if( weights.size() != joints.size() )
-        {
-
-        }
-
-        if( weights.size() == 0 )
-        {
-            weights.resize( positions.size() );
-            for (size_t i = 0; i < weights.size(); i++)
-            {
-                weights[i] = 1.0f;
-            }
-        }
-        else if( weights.size() != positions.size() )
-            throw std::runtime_error( "weights count != from vertex position count" );
-
-        if(  == 0 )
-        {
-            joints.resize( positions.size() );
-            for (size_t i = 0; i < joints.size(); i++)
-            {
-                joints[i] = glm::u16vec4( 0, 0, 0, 0 );
-            }
-        }
-        else if( joints.size() != positions.size() )
-            throw std::runtime_error( "vertex joint count != from vertex position count" );
-#endif 
-    
-        vertexCount = positions.size();
-        subset.vertices.resize(vertexCount);
-
-        // MD5 weights são uma lista linear + startWeight
-        std::vector<MD5::Weight_t> weightsList;
-
-        uint32_t nextWeight = 0;
-
-        // Transformar para MD5
-        for ( uint32_t i = 0; i < vertexCount; i++) 
-        {
-            MD5::Vertex_t v{};
-            v.uv = coordinates[i];
-            v.startWeight = nextWeight;
-            
-            for ( int w = 0; w < jointPerVertex; w++, nextWeight++) 
-            {
-                MD5::Weight_t mw{};
-                mw.joint = joints[nextWeight];
-                mw.bias  = weights[nextWeight];
-                
-                /// ignore 0 bias weights 
-                if( mw.bias == 0 )
-                    continue;
-                
-                // weight in the joint space 
-                mw.pos = inverseBindMatrix[joints[nextWeight]] * positions[i];
-                
-                weightsList.push_back(mw);
-            }
-            
-            v.weightCount = nextWeight - v.startWeight ;
-            subset.vertices[i] = v;
-        }
-
-        subset.weights = std::move(weightsList);
-
-        // Índices
-        if ( prim.indicesAccessor ) 
-        {
-            auto& indexAcc = in_assets.accessors[*prim.indicesAccessor];
-            std::vector<uint16_t> indices;
-            indices.resize( indexAcc.count );
-            
-            if ( indexAcc.componentType == gltf::ComponentType::UnsignedByte || indexAcc.componentType == gltf::ComponentType::UnsignedShort )
-                gltf::copyFromAccessor<std::uint16_t>( in_assets, indexAcc, indices.data());
-
-            for (size_t i = 0; i < indexAcc.count; i += 3 )
-            {
-                MD5::Triangle_t t{};
-                t.v0 = indices[ i + 0 ];
-                t.v1 = indices[ i + 1 ];
-                t.v2 = indices[ i + 2 ];
-                subset.triangles.push_back(t);
-            }
-        }
-        else
-            throw std::runtime_error( " not valide index on model " );
-
-        out_model.AddMesh( subset );
-    }
-}
-
-/*
-======================================
-gltfToMd5::ConvertGLTFtoMD5
-======================================
-*/
-MD5::Model gltfToMd5::ConvertGLTFtoMD5( const std::filesystem::path& in_path )
-{
-    MD5::Model model{};
-
-    ///
-    fastgltf::Parser parser( supportedExtensions );
-
-    ///
-    if( !std::filesystem::exists( in_path ) )
-        throw std::runtime_error( "Source File Don't exits" );
-
-    ///
-    std::cout << "trying to open " << in_path.c_str() << std::endl;
-    gltf::Expected<gltf::MappedGltfFile> file = gltf::MappedGltfFile::FromPath( in_path );
-	if (!bool(file)) 
-        throw std::runtime_error( gltf::getErrorMessage( file.error() ).data() );
-
-    ///
-    auto assets = parser.loadGltf( file.get(), in_path.parent_path(), gltfOptions );
-    if ( assets.error() != gltf::Error::None )
-        throw std::runtime_error( gltf::getErrorMessage( assets.error()).data() );
-    
-    /// build skining skeleton
-    const auto& skin = assets.get().skins[0];
-    LoadJoints( assets.get(), skin, model);
+    m_model.ReserveMeshes( in_assets.meshes.size() );
 
     /// load model meshes
-    for ( const auto& m : assets.get().meshes )
+    for ( const auto& m : in_assets.meshes )
     {
-        LoadMesh( assets.get(), m, skin, model);
-    }
+        for ( auto& prim : in_gltfMesh.primitives )
+        {
+            size_t vertexCount = 0;
+            uint32_t jointPerVertex = 0;
+            std::vector<glm::vec4>      positions = std::vector<glm::vec4>();   // vertex positions ( vec4 for easy joit pos calculation )
+            std::vector<glm::vec2>      coordinates = std::vector<glm::vec2>(); // vertex uv 
+            std::vector<float>          weights = std::vector<float>();     // joints influences
+            std::vector<uint16_t>       joints = std::vector<uint16_t>();   // joint ids
+            std::vector<glm::mat4>      inverseBindMatrix = std::vector<glm::mat4>(); // inverse pose matrix
 
-    return model;
+            MD5::Mesh_t subset{};
+
+            if ( prim.materialIndex.has_value() )
+            {
+                const auto &mtr = in_assets.materials[*prim.materialIndex];
+                subset.shader = mtr.name.c_str();
+            }
+            else
+            {
+                subset.shader = "defaut";
+            }
+
+            // get vertex positions
+            if( !LoadPositions( in_assets, prim, positions ) )
+                throw std::runtime_error( "A mesh primitive is required to hold the POSITION attribute." );
+
+            // get texture coordinates
+            if( !LoadTextureCoordinates( in_assets, prim, coordinates ) )
+                throw std::runtime_error( "A mesh primitive is required to hold atleast TEXCOORD_0 attribute." );
+
+            // get vertex weights influences
+            if( !LoadWeights( in_assets, prim, weights, joints, jointPerVertex ) )
+                throw std::runtime_error( "A mesh primitive is required to hold the WEIGHTS_0 attribute." );
+
+            // inverse pose Bind Matrix
+            if( !LoadInverseMatrixes( in_assets, in_skin, inverseBindMatrix ) )
+                throw std::runtime_error( "A mesh primitive is required to hold the WEIGHTS_0 attribute." );
+
+            if( coordinates.size() == 0)
+            {
+                coordinates.resize( positions.size() );
+                // made all blanc
+                for (size_t i = 0; i < coordinates.size(); i++)
+                {
+                    coordinates[i] = glm::vec2( 0.0f, 0.0f );
+                }
+            }
+            else if( coordinates.size() != positions.size() )
+                throw std::runtime_error( "texture coordinate count != from vertex position count" );
+
+    #if 0 // TODO: fix
+            if( weights.size() != joints.size() )
+            {
+
+            }
+
+            if( weights.size() == 0 )
+            {
+                weights.resize( positions.size() );
+                for (size_t i = 0; i < weights.size(); i++)
+                {
+                    weights[i] = 1.0f;
+                }
+            }
+            else if( weights.size() != positions.size() )
+                throw std::runtime_error( "weights count != from vertex position count" );
+
+            if(  == 0 )
+            {
+                joints.resize( positions.size() );
+                for (size_t i = 0; i < joints.size(); i++)
+                {
+                    joints[i] = glm::u16vec4( 0, 0, 0, 0 );
+                }
+            }
+            else if( joints.size() != positions.size() )
+                throw std::runtime_error( "vertex joint count != from vertex position count" );
+    #endif 
+        
+            vertexCount = positions.size();
+            subset.vertices.resize(vertexCount);
+
+            // MD5 weights são uma lista linear + startWeight
+            std::vector<MD5::Weight_t> weightsList;
+
+            uint32_t nextWeight = 0;
+
+            // Transformar para MD5
+            for ( uint32_t i = 0; i < vertexCount; i++) 
+            {
+                MD5::Vertex_t v{};
+                v.uv = coordinates[i];
+                v.startWeight = nextWeight;
+                
+                for ( int w = 0; w < jointPerVertex; w++, nextWeight++) 
+                {
+                    MD5::Weight_t mw{};
+                    mw.joint = joints[nextWeight];
+                    mw.bias  = weights[nextWeight];
+                    
+                    /// ignore 0 bias weights 
+                    if( mw.bias == 0 )
+                        continue;
+                    
+                    // weight in the joint space 
+                    mw.pos = inverseBindMatrix[joints[nextWeight]] * positions[i];
+                    
+                    weightsList.push_back(mw);
+                }
+                
+                v.weightCount = nextWeight - v.startWeight ;
+                subset.vertices[i] = v;
+            }
+
+            subset.weights = std::move(weightsList);
+
+            // Índices
+            if ( prim.indicesAccessor ) 
+            {
+                auto& indexAcc = in_assets.accessors[*prim.indicesAccessor];
+                std::vector<uint16_t> indices;
+                indices.resize( indexAcc.count );
+                
+                if ( indexAcc.componentType == gltf::ComponentType::UnsignedByte || indexAcc.componentType == gltf::ComponentType::UnsignedShort )
+                    gltf::copyFromAccessor<std::uint16_t>( in_assets, indexAcc, indices.data());
+
+                for (size_t i = 0; i < indexAcc.count; i += 3 )
+                {
+                    MD5::Triangle_t t{};
+                    t.v0 = indices[ i + 0 ];
+                    t.v1 = indices[ i + 1 ];
+                    t.v2 = indices[ i + 2 ];
+                    subset.triangles.push_back(t);
+                }
+            }
+            else
+                throw std::runtime_error( " not valide index on model " );
+
+            out_model.AddMesh( subset );
+        }
+
+        m_currentMesh++;
+    }
 }

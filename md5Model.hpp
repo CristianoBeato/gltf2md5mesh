@@ -102,12 +102,16 @@ namespace MD5
         /// @brief Clear all model data.
         void        Clear( void );
 
+        ///
+        void        AddJoint( const Joint_t &in_joint ){ m_joints.push_back( in_joint ); }
+        
+        ///
+        void        AddMesh( const Mesh_t &in_mesh ) { m_meshes.push_back( in_mesh ); }
         void        SetVersion( const uint32_t &in_version ) { m_version = in_version;}
         void        SetCommandLine( const std::string &in_string ) { m_commandline = in_string; }
-        void        ReserveJoints( const uint32_t in_count ) { m_joints.resize( in_count ); }
-        void        ReserveMeshes( const uint32_t in_count ) { m_meshes.resize( in_count ); }
-        void        AddMesh( const Mesh_t &in_mesh ) { m_meshes.push_back( in_mesh ); }
-
+        
+        void        ReserveJoints( const uint32_t in_count ) { m_joints.reserve( in_count ); }
+        void        ReserveMeshes( const uint32_t in_count ) { m_meshes.reserve( in_count ); }
         bool        ValidateModel( std::stringstream  &out_error ) const;        
 
         uint32_t                Version( void ) const { return m_version; }
