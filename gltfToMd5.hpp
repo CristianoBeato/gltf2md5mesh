@@ -48,17 +48,28 @@ public:
 	MD5::Model	BuildMD5( void );
 
 private:
-	uint32_t  	m_currentMesh;
-	MD5::Model	m_model;
-	std::vector<std::vector<glm::vec4>>	m_positions;
-	std::vector<std::vector<glm::vec2>>	m_coordinates;
+	struct mesh_t
+	{
+		std::string							name;
+		std::string							shader;
+		std::vector<glm::vec3>				positions;
+		std::vector<glm::vec2>				coordinates;
+		std::vector<glm::u32vec3>			triangles;
+		std::vector<std::vector<float>>		weights;
+		std::vector<std::vector<uint16_t>>	joints;
+	};
+
+	uint32_t 					m_jointPerVertex;
+	uint32_t  					m_currentMesh;
+	std::vector<MD5::Joint_t>	m_joints;
+	std::vector<mesh_t>			m_meshes;
 
 	bool 		LoadJoints( const gltf::Asset &in_assets, const gltf::Skin& in_skin );
-	bool		LoadTriangles( const gltf::Asset &in_assets );
+	bool		LoadTriangles( const gltf::Asset &in_assets, const gltf::Primitive& in_prim );
 	bool		LoadVertexes( const gltf::Asset &in_assets, const gltf::Primitive& in_prim );
-	bool		LoadWeights( const gltf::Asset &in_assets, const gltf::Primitive& in_prim, std::vector<float> &out_weights, std::vector<uint16_t> &out_joints, uint32_t &out_jointPerVertex );
+	bool		LoadWeights( const gltf::Asset &in_assets, const gltf::Primitive& in_prim );
 	bool 		LoadInverseMatrixes( const gltf::Asset &in_assets, const gltf::Skin& skin, std::vector<glm::mat4> &inversePose );
-	bool 		LoadMeshes( const gltf::Asset &in_assets, const gltf::Mesh& in_gltfMesh, const gltf::Skin& in_skin, MD5::Model& out_model );
+	bool 		LoadMeshes( const gltf::Asset &in_assets, const gltf::Skin& in_skin );
 };
 
 #endif //__GLTF_TO_MD5_HPP__

@@ -96,15 +96,15 @@ int main( int argc, char* argv[] )
         if ( outPath.empty() )
             outPath = inPath;
         
-        auto model = gltfToMd5mesh.ConvertGLTFtoMD5( inPath );
+        auto model = gltfToMd5mesh.LoadGLTF( inPath.string() );
         
         outPath.replace_extension( "md5mesh" );
 
         /// Write the .md5mesh to disk
         /// TODO: command line string should be generated from the actual command line arguments, not hardcoded
-        model.SetVersion( VERSION ); /// We current suport version 1.0 of the md5 format, but this can be changed in the future if we need to add new features that can be not compatible with the old version
-        model.SetCommandLine( "gltf2md5mesh --input " + inPath.string() + " --mesh " + outPath.string() );
-        model.Write( outPath.string() );
+        // model.SetVersion( VERSION ); /// We current suport version 1.0 of the md5 format, but this can be changed in the future if we need to add new features that can be not compatible with the old version
+        // model.SetCommandLine( "gltf2md5mesh --input " + inPath.string() + " --mesh " + outPath.string() );
+        // model.Write( outPath.string() );
     }
     catch(const std::exception& e)
     {
@@ -168,6 +168,90 @@ bool gltfToMd5::LoadGLTF( const std::filesystem::path &in_path )
 
 }
 
+MD5::Model gltfToMd5::BuildMD5(void)
+{
+/*
+#if 0 
+    
+            if( coordinates.size() == 0)
+            {
+                coordinates.resize( positions.size() );
+                // made all blanc
+                for (size_t i = 0; i < coordinates.size(); i++)
+                {
+                    coordinates[i] = glm::vec2( 0.0f, 0.0f );
+                }
+            }
+            else if( coordinates.size() != positions.size() )
+                throw std::runtime_error( "texture coordinate count != from vertex position count" );
+
+    #if 0 // TODO: fix
+            if( weights.size() != joints.size() )
+            {
+
+            }
+
+            if( weights.size() == 0 )
+            {
+                weights.resize( positions.size() );
+                for (size_t i = 0; i < weights.size(); i++)
+                {
+                    weights[i] = 1.0f;
+                }
+            }
+            else if( weights.size() != positions.size() )
+                throw std::runtime_error( "weights count != from vertex position count" );
+
+            if(  == 0 )
+            {
+                joints.resize( positions.size() );
+                for (size_t i = 0; i < joints.size(); i++)
+                {
+                    joints[i] = glm::u16vec4( 0, 0, 0, 0 );
+                }
+            }
+            else if( joints.size() != positions.size() )
+                throw std::runtime_error( "vertex joint count != from vertex position count" );
+    #endif 
+        
+            uint32_t nextWeight = 0;
+
+            // Transformar para MD5
+            for ( uint32_t i = 0; i < vertexCount; i++) 
+            {
+                MD5::Vertex_t v{};
+                v.uv = coordinates[i];
+                v.startWeight = nextWeight;
+                
+                for ( int w = 0; w < jointPerVertex; w++, nextWeight++) 
+                {
+                    MD5::Weight_t mw{};
+                    mw.joint = joints[nextWeight];
+                    mw.bias  = weights[nextWeight];
+                    
+                    /// ignore 0 bias weights 
+                    if( mw.bias == 0 )
+                        continue;
+                    
+                    // weight in the joint space 
+                    mw.pos = inverseBindMatrix[joints[nextWeight]] * positions[i];
+                    
+                    weightsList.push_back(mw);
+                }
+                
+                v.weightCount = nextWeight - v.startWeight ;
+                subset.vertices[i] = v;
+            }
+
+            subset.weights = std::move(weightsList);
+
+            out_model.AddMesh( subset );
+        }
+#endif
+*/
+    return MD5::Model();
+}
+
 /*
 ======================================
 gltfToMd5::LoadJoints
@@ -180,7 +264,7 @@ bool gltfToMd5::LoadJoints( const gltf::Asset &in_assets, const gltf::Skin& in_s
     auto nodes = in_assets.nodes;
 
     jointCount = static_cast<uint32_t>( in_skin.joints.size() );
-    m_model.ReserveJoints( jointCount );
+    m_joints.reserve( jointCount );
 
     // Descobre parent de cada node
     std::vector<int> parent( nodes.size(), -1 );
@@ -213,10 +297,10 @@ bool gltfToMd5::LoadJoints( const gltf::Asset &in_assets, const gltf::Skin& in_s
         /// get rotation
         joint.orient = glm::quat( transform.rotation.w(), transform.rotation.x(), transform.rotation.y(), transform.rotation.z());
         
-        /// get scaling ( not used in MD5Mesh )
-        // glm::vec3 s = glm::vec3( transform.scale.x(), transform.scale.y(), transform.scale.z() );
+        /// get scaling ( not used in MD5Mesh 1.0 )
+        /// glm::vec3 s = glm::vec3( transform.scale.x(), transform.scale.y(), transform.scale.z() );
 
-        m_model.AddJoint( joint );
+        m_joints.push_back( joint );
     }
 
     return true;
@@ -227,12 +311,35 @@ bool gltfToMd5::LoadJoints( const gltf::Asset &in_assets, const gltf::Skin& in_s
 gltfToMd5::LoadTriangles
 ======================================
 */
-bool gltfToMd5::LoadTriangles(const gltf::Asset &in_assets)
+bool gltfToMd5::LoadTriangles( const gltf::Asset &in_assets, const gltf::Primitive &in_prim )
 {
     // We specify GenerateMeshIndices, so we should always have indices
-	assert( in_prim.indicesAccessor.has_value() ); 
+	if( !in_prim.indicesAccessor.has_value() ); 
+        return false;
+
+    // Índices
+    auto& indexAcc = in_assets.accessors[*in_prim.indicesAccessor];
     
-    return false;
+    // ensure we have enough space for all triangles,
+    // even if the count is not a multiple of 3
+    std::vector<uint16_t> indices;
+    indices.resize( indexAcc.count ); 
+                
+    if ( indexAcc.componentType == gltf::ComponentType::UnsignedByte || indexAcc.componentType == gltf::ComponentType::UnsignedShort )
+    {
+        gltf::copyFromAccessor<std::uint16_t>( in_assets, indexAcc, indices.data());
+
+        for (size_t i = 0; i < indexAcc.count; i += 3 )
+        {
+            glm::u32vec3 t{};
+            t.x = indices[ i + 0 ];
+            t.y = indices[ i + 1 ];
+            t.z = indices[ i + 2 ];
+            m_meshes[m_currentMesh].triangles.push_back(t);
+        }
+    }
+
+    return true;
 }
 
 /*
@@ -267,23 +374,21 @@ bool gltfToMd5::LoadVertexes(const gltf::Asset &in_assets, const gltf::Primitive
     }
 
     // resize vertex array
-    m_positions.resize( positionAccessor.count );
-    m_coordinates.resize( texCoordAccessor.count );
+    m_meshes[m_currentMesh].positions.resize( positionAccessor.count );
+    m_meshes[m_currentMesh].coordinates.resize( texCoordAccessor.count );
 
     // position data acess lambda
     auto getpos = [&]( fastgltf::math::fvec3 pos, std::size_t idx ) 
     {
-		m_positions[m_currentMesh][idx] = glm::vec4( pos.x(), pos.y(), pos.z(), 1.0f );
+		m_meshes[m_currentMesh].positions[idx] = glm::vec3( pos.x(), pos.y(), pos.z() );
     };
 
     fastgltf::iterateAccessorWithIndex<fastgltf::math::fvec3>( in_assets, positionAccessor, getpos );
  
-    m_coordinates.resize( texCoordAccessor.count );
-
     // coordinate data acess lambda
     auto getuv = [&]( fastgltf::math::fvec2 uv, std::size_t idx ) 
     {
-	    out_coordinates[idx] = glm::vec2( uv.x(), uv.y() );
+	    m_meshes[m_currentMesh].coordinates[idx] = glm::vec2( uv.x(), uv.y() );
     };
 
     fastgltf::iterateAccessorWithIndex<fastgltf::math::fvec2>( in_assets, texCoordAccessor, getuv );
@@ -295,7 +400,7 @@ bool gltfToMd5::LoadVertexes(const gltf::Asset &in_assets, const gltf::Primitive
 gltfToMd5::LoadWeights
 ======================================
 */
-bool gltfToMd5::LoadWeights( const gltf::Asset &in_assets, const gltf::Primitive& in_prim, std::vector<float> &out_weights, std::vector<uint16_t> &out_joints, uint32_t &out_jointPerVertex )
+bool gltfToMd5::LoadWeights( const gltf::Asset &in_assets, const gltf::Primitive& in_prim )
 {
     uint32_t windex = 0;
     uint32_t jindex = 0;
@@ -323,27 +428,27 @@ bool gltfToMd5::LoadWeights( const gltf::Asset &in_assets, const gltf::Primitive
     // resize the weights array 
     if( weightsAcc1 != in_prim.attributes.end() )
     {
-        out_weights.resize( weightAccessor0.count + weightAccessor1.count );
-        out_jointPerVertex = 8;
+        m_meshes[m_currentMesh].weights.resize( weightAccessor0.count + weightAccessor1.count );
+        m_jointPerVertex = 8;
     }
     else
     {
-        out_weights.resize( weightAccessor0.count );
-        out_jointPerVertex = 4;
+        m_meshes[m_currentMesh].weights.resize( weightAccessor0.count );
+        m_jointPerVertex = 4;
     }
 
     // resize the joint array
     if( jointsAccessor1.bufferViewIndex.has_value() )
-        out_joints.reserve( jointsAccessor0.count + jointsAccessor1.count );
+        m_meshes[m_currentMesh].joints.resize( jointsAccessor0.count + jointsAccessor1.count );
     else
-        out_joints.resize( jointsAccessor0.count );
+        m_meshes[m_currentMesh].joints.resize( jointsAccessor0.count );
 
     // coordinate weight acess lambda
     auto Getweight = [&]( fastgltf::math::fvec4 weight, std::size_t idx ) 
     {   
         for (size_t w = 0; w < 4; w++)
         {
-            out_weights[windex + w] = weight[w];
+            m_meshes[m_currentMesh].weights[windex + w].push_back( weight[w] );
         }        
         windex += 4;
     };
@@ -353,7 +458,7 @@ bool gltfToMd5::LoadWeights( const gltf::Asset &in_assets, const gltf::Primitive
     {
         for (size_t wj = 0; wj < 4; wj++)
         {
-            out_joints[jindex + wj] = joint[wj];
+            m_meshes[m_currentMesh].joints[jindex + wj].push_back( joint[wj] );
         }        
         jindex += 4;
     };
@@ -400,15 +505,19 @@ bool gltfToMd5::LoadInverseMatrixes( const gltf::Asset &in_assets, const gltf::S
 gltfToMd5::LoadMesh
 ======================================
 */
-void gltfToMd5::LoadMeshes( const gltf::Asset &in_assets, const gltf::Mesh& in_gltfMesh, const gltf::Skin& in_skin, MD5::Model& out_model )
+bool gltfToMd5::LoadMeshes( const gltf::Asset &in_assets, const gltf::Skin& in_skin )
 {
-    m_model.ReserveMeshes( in_assets.meshes.size() );
+    m_meshes.reserve( in_assets.meshes.size() );
 
     /// load model meshes
-    for ( const auto& m : in_assets.meshes )
+    for ( const auto& mesh : in_assets.meshes )
     {
-        for ( auto& prim : in_gltfMesh.primitives )
+        for ( auto& prim : mesh.primitives )
         {
+            /// MD5meshes only suport triangles
+            if ( prim.type != fastgltf::PrimitiveType::Triangles )
+                    continue;
+
             size_t vertexCount = 0;
             uint32_t jointPerVertex = 0;
             std::vector<glm::vec4>      positions = std::vector<glm::vec4>();   // vertex positions ( vec4 for easy joit pos calculation )
@@ -416,138 +525,33 @@ void gltfToMd5::LoadMeshes( const gltf::Asset &in_assets, const gltf::Mesh& in_g
             std::vector<float>          weights = std::vector<float>();     // joints influences
             std::vector<uint16_t>       joints = std::vector<uint16_t>();   // joint ids
             std::vector<glm::mat4>      inverseBindMatrix = std::vector<glm::mat4>(); // inverse pose matrix
-
-            MD5::Mesh_t subset{};
-
+            
             if ( prim.materialIndex.has_value() )
             {
                 const auto &mtr = in_assets.materials[*prim.materialIndex];
-                subset.shader = mtr.name.c_str();
+                m_meshes[m_currentMesh].shader = mtr.name.c_str();
             }
             else
             {
-                subset.shader = "defaut";
+                m_meshes[m_currentMesh].shader = "defaut";
             }
 
+            if( !LoadTriangles( in_assets, prim ) )
+                throw std::runtime_error( "A mesh primitive is required to hold the indices." );
+
             // get vertex positions
-            if( !LoadPositions( in_assets, prim, positions ) )
+            if( !LoadVertexes( in_assets, prim ) )
                 throw std::runtime_error( "A mesh primitive is required to hold the POSITION attribute." );
 
-            // get texture coordinates
-            if( !LoadTextureCoordinates( in_assets, prim, coordinates ) )
-                throw std::runtime_error( "A mesh primitive is required to hold atleast TEXCOORD_0 attribute." );
-
             // get vertex weights influences
-            if( !LoadWeights( in_assets, prim, weights, joints, jointPerVertex ) )
+            if( !LoadWeights( in_assets, prim ) )
                 throw std::runtime_error( "A mesh primitive is required to hold the WEIGHTS_0 attribute." );
 
             // inverse pose Bind Matrix
             if( !LoadInverseMatrixes( in_assets, in_skin, inverseBindMatrix ) )
                 throw std::runtime_error( "A mesh primitive is required to hold the WEIGHTS_0 attribute." );
 
-            if( coordinates.size() == 0)
-            {
-                coordinates.resize( positions.size() );
-                // made all blanc
-                for (size_t i = 0; i < coordinates.size(); i++)
-                {
-                    coordinates[i] = glm::vec2( 0.0f, 0.0f );
-                }
-            }
-            else if( coordinates.size() != positions.size() )
-                throw std::runtime_error( "texture coordinate count != from vertex position count" );
-
-    #if 0 // TODO: fix
-            if( weights.size() != joints.size() )
-            {
-
-            }
-
-            if( weights.size() == 0 )
-            {
-                weights.resize( positions.size() );
-                for (size_t i = 0; i < weights.size(); i++)
-                {
-                    weights[i] = 1.0f;
-                }
-            }
-            else if( weights.size() != positions.size() )
-                throw std::runtime_error( "weights count != from vertex position count" );
-
-            if(  == 0 )
-            {
-                joints.resize( positions.size() );
-                for (size_t i = 0; i < joints.size(); i++)
-                {
-                    joints[i] = glm::u16vec4( 0, 0, 0, 0 );
-                }
-            }
-            else if( joints.size() != positions.size() )
-                throw std::runtime_error( "vertex joint count != from vertex position count" );
-    #endif 
-        
-            vertexCount = positions.size();
-            subset.vertices.resize(vertexCount);
-
-            // MD5 weights são uma lista linear + startWeight
-            std::vector<MD5::Weight_t> weightsList;
-
-            uint32_t nextWeight = 0;
-
-            // Transformar para MD5
-            for ( uint32_t i = 0; i < vertexCount; i++) 
-            {
-                MD5::Vertex_t v{};
-                v.uv = coordinates[i];
-                v.startWeight = nextWeight;
-                
-                for ( int w = 0; w < jointPerVertex; w++, nextWeight++) 
-                {
-                    MD5::Weight_t mw{};
-                    mw.joint = joints[nextWeight];
-                    mw.bias  = weights[nextWeight];
-                    
-                    /// ignore 0 bias weights 
-                    if( mw.bias == 0 )
-                        continue;
-                    
-                    // weight in the joint space 
-                    mw.pos = inverseBindMatrix[joints[nextWeight]] * positions[i];
-                    
-                    weightsList.push_back(mw);
-                }
-                
-                v.weightCount = nextWeight - v.startWeight ;
-                subset.vertices[i] = v;
-            }
-
-            subset.weights = std::move(weightsList);
-
-            // Índices
-            if ( prim.indicesAccessor ) 
-            {
-                auto& indexAcc = in_assets.accessors[*prim.indicesAccessor];
-                std::vector<uint16_t> indices;
-                indices.resize( indexAcc.count );
-                
-                if ( indexAcc.componentType == gltf::ComponentType::UnsignedByte || indexAcc.componentType == gltf::ComponentType::UnsignedShort )
-                    gltf::copyFromAccessor<std::uint16_t>( in_assets, indexAcc, indices.data());
-
-                for (size_t i = 0; i < indexAcc.count; i += 3 )
-                {
-                    MD5::Triangle_t t{};
-                    t.v0 = indices[ i + 0 ];
-                    t.v1 = indices[ i + 1 ];
-                    t.v2 = indices[ i + 2 ];
-                    subset.triangles.push_back(t);
-                }
-            }
-            else
-                throw std::runtime_error( " not valide index on model " );
-
-            out_model.AddMesh( subset );
-        }
-
         m_currentMesh++;
+        }
     }
 }
