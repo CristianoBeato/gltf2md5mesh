@@ -44,15 +44,24 @@ public:
 	gltfToMd5( void );
 	~gltfToMd5( void );
 
-	bool		LoadGLTF( const std::filesystem::path& in_path );
+	void		LoadGLTF( const std::filesystem::path& in_path );
 	MD5::Model	BuildMD5( void );
 
 private:
+	struct joint_t
+	{
+		int 		parent;
+		std::string name;
+		glm::vec4	position;
+		glm::vec4	rotation;
+		glm::vec4	scalation;
+	};
+
 	struct mesh_t
 	{
 		std::string							name;
 		std::string							shader;
-		std::vector<glm::vec3>				positions;
+		std::vector<glm::vec4>				positions;
 		std::vector<glm::vec2>				coordinates;
 		std::vector<glm::u32vec3>			triangles;
 		std::vector<std::vector<float>>		weights;
@@ -61,15 +70,15 @@ private:
 
 	uint32_t 					m_jointPerVertex;
 	uint32_t  					m_currentMesh;
-	std::vector<MD5::Joint_t>	m_joints;
+	std::vector<joint_t>		m_joints;
 	std::vector<mesh_t>			m_meshes;
 
-	bool 		LoadJoints( const gltf::Asset &in_assets, const gltf::Skin& in_skin );
 	bool		LoadTriangles( const gltf::Asset &in_assets, const gltf::Primitive& in_prim );
 	bool		LoadVertexes( const gltf::Asset &in_assets, const gltf::Primitive& in_prim );
 	bool		LoadWeights( const gltf::Asset &in_assets, const gltf::Primitive& in_prim );
 	bool 		LoadInverseMatrixes( const gltf::Asset &in_assets, const gltf::Skin& skin, std::vector<glm::mat4> &inversePose );
-	bool 		LoadMeshes( const gltf::Asset &in_assets, const gltf::Skin& in_skin );
+	void 		LoadJoints( const gltf::Asset &in_assets, const gltf::Skin& in_skin );
+	void 		LoadMeshes( const gltf::Asset &in_assets, const gltf::Skin& in_skin );
 };
 
 #endif //__GLTF_TO_MD5_HPP__
