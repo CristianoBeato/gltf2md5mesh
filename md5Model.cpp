@@ -11,13 +11,13 @@
 
 void MD5::Joint_t::ComputeW(void)
 {
-    float t = 1.0f - ( orient.x * orient.x ) - (orient.y * orient.y) - (orient.z * orient.z);
-    orient.w = t < 0.0f ? 0.0f : -std::sqrt( t );
+    float t = 1.0f - ( rotation.x * rotation.x ) - (rotation.y * rotation.y) - (rotation.z * rotation.z);
+    rotation.w = t < 0.0f ? 0.0f : -std::sqrt( t );
 }
 
 glm::mat4 MD5::Joint_t::ComputeInverseBindPose( void ) const
 {
-    glm::mat4 transform = glm::translate( glm::mat4(1.0f), pos ) * glm::mat4_cast( orient );
+    glm::mat4 transform = glm::translate( glm::mat4(1.0f), position ) * glm::mat4_cast( rotation );
     return glm::inverse( transform );
 }
 
@@ -90,17 +90,17 @@ void MD5::Model::Read( const std::string &in_path )
                 if ( !( jointIss >> std::quoted( jointName ) ) ) 
                     continue; // jump '{' line
 
-                uint32_t parentIndex;
+                int32_t parentIndex;
                 jointIss >> parentIndex;
                 
                 Joint_t joint{};
                 joint.name = jointName;
-                joint.parentIndex = parentIndex;
+                joint.parent = parentIndex;
 
                 jointIss.ignore( 256, '(');
-                jointIss >> joint.pos.x >> joint.pos.y >> joint.pos.z;
+                jointIss >> joint.position.x >> joint.position.y >> joint.position.z;
                 jointIss.ignore( 256, ')');
-                jointIss >> joint.orient.x >> joint.orient.y >> joint.orient.z;
+                jointIss >> joint.rotation.x >> joint.rotation.y >> joint.rotation.z;
                 
                 joint.ComputeW();
                 m_joints[jointIndex++] = joint;
@@ -274,13 +274,13 @@ void MD5::Model::Write(const std::string &in_path) const
 		MD5::Joint_t joint = m_joints[i];
 		
 		// write joint "name" and parent index ( -1 for root )
-		file << "\t\"" << joint.name << "\" " << joint.parentIndex;
+		file << "\t\"" << joint.name << "\" " << joint.parent;
 		
 		// write joint position
-		file << " ( " << joint.pos.x << " " << joint.pos.y << " " << joint.pos.z << " ) ";
+		file << " ( " << joint.position.x << " " << joint.position.y << " " << joint.position.z << " ) ";
 		
 		// write joint orientation
-		file << " ( " << joint.orient.x << " " << joint.orient.y << " " << joint.orient.z << " )\n";
+		file << " ( " << joint.rotation.x << " " << joint.rotation.y << " " << joint.rotation.z << " )\n";
 	}
 	file << "}\n";
 	file << std::endl;
@@ -364,7 +364,7 @@ bool MD5::Model::ValidateModel( std::stringstream &out_error ) const
     for ( i = 0; i < jointCount; i++)
     {
         auto joint = m_joints[i];
-        if ( joint.parentIndex < 0 )
+        if ( joint.parent < 0 )
         {
             if( base == UINT32_MAX )
             {

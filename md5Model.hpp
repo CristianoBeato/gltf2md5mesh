@@ -32,10 +32,10 @@ namespace MD5
 {
     struct Joint_t
     {
-        int             parentIndex = 0;
+        int32_t         parent = 0;
         size_t          inverseBind = 0;
-        glm::vec3       pos;        //
-        glm::quat       orient;     // x, y, z (w é recomputado quando carregado)
+        glm::vec3       position;        //
+        glm::quat       rotation;     // x, y, z (w é recomputado quando carregado)
         std::string     name;
 
         void ComputeW( void );
